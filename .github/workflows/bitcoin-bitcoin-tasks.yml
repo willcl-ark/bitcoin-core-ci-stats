@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 jobs:
   bitcoin-bitcoin-tasks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
       with:
@@ -20,8 +20,12 @@ jobs:
         # make copy of script to retain it after switching branches
         cp fetch-tasks.py fetch.py
         git checkout bitcoin-bitcoin-tasks
+    - name: Python version
+      run: python3 --version
+    - name: Install python dependecies
+      run: pip install requests
     - name: Fetch tasks
-      run: python3 fetch.py --builds 500 --owner bitcoin --repository bitcoin
+      run: python3 fetch.py --builds 400 --owner bitcoin --repository bitcoin
     - name: Commit changes
       run: |
         git add tasks.json

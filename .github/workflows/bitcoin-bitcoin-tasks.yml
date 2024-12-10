@@ -1,0 +1,33 @@
+# This workflow will fetch the newest tasks from the Cirrus CI API and
+# add them to this repository in the bitcoin-bitcoin-tasks branch
+name: bitcoin-bitcoin-tasks
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+jobs:
+  bitcoin-bitcoin-tasks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+    - name: Configure git and checkout branch
+      run: |
+        git config --local user.email "0xb10c+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        # make copy of script to retain it after switching branches
+        cp fetch-tasks.py fetch.py
+        git checkout bitcoin-bitcoin-tasks
+    - name: Fetch tasks
+      run: python3 fetch.py --builds 500 --owner bitcoin --repository bitcoin
+    - name: Commit changes
+      run: |
+        git add tasks.json
+        git commit -m "Auto updated tasks.json: $(date)" -a || true
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: bitcoin-bitcoin-tasks

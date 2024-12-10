@@ -3,7 +3,9 @@ import json
 import requests
 from datetime import datetime, timedelta
 import re
+import os
 import unittest
+from multiprocessing import Pool
 
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
@@ -202,14 +204,14 @@ def fetch_cirrus_ci_task_log(id) -> tuple[int, str]:
     return response.status_code, response.text
 
 
-def fetch_cirrus_ci_tasks(owner="bitcoin", repository="bitcoin") -> list:
+def fetch_cirrus_ci_tasks(owner="bitcoin", repository="bitcoin", builds=LAST_BUILDS_TO_QUERY) -> list:
     payload = {
         "query": TASK_QUERY,
         "variables": {
             "owner": owner,
             "name": repository,
             "platform": "github",
-            "builds": LAST_BUILDS_TO_QUERY,
+            "builds": builds,
         }
     }
 
@@ -285,13 +287,19 @@ def update_task_with_log(task: Task) -> Task:
     return task
 
 
+def get_and_process_logs_for_task(task: Task):
+    return update_task_with_parsed_log(update_task_with_log(task))
+
+
 def main():
 
-    unittest.main(exit=False)
+    unittest.main(exit=False, verbosity=0)
 
+    print("querying tasks from API...")
     tasks = fetch_cirrus_ci_tasks(owner="0xB10C")
-    tasks = [update_task_with_parsed_log(
-        update_task_with_log(task)) for task in tasks]
+
+    pool = Pool(processes=os.cpu_count() * 4)
+    tasks = pool.map(get_and_process_logs_for_task, tasks)
 
     print("writing tasks..")
     with open("tasks.json", "w") as f:

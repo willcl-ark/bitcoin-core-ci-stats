@@ -1,0 +1,102 @@
+{{ define "main" }}
+    <section id="single" class="container-lg">
+        <h1>
+            <a href="https://cirrus-ci.com/task/{{ .Params.id }}" target="_blank">
+                {{ .Title }}
+            </a>
+        </h1>
+        <h2>
+            {{ with .Params.build }}
+                {{ .changeMessageTitle }}
+            {{ end }}
+        </h2>
+
+        {{ div .Params.creationTimestamp 1000 | int | dateFormat "2006-01-02 15:04:05" }}
+
+        {{ with .Params.status }}
+            {{ if eq . "COMPLETED" }}
+                <span class="badge text-bg-success">completed</span>
+            {{ else if eq . "FAILED" }}
+                <span class="badge text-bg-danger">failed</span>
+            {{ else if eq . "ABORTED" }}
+                <span class="badge text-bg-warning">aborted</span>
+            {{ end }}
+        {{ end }}
+
+        {{ with .Params.executionInfoLabels }}
+            {{ range . }}
+                <a class="badge text-bg-secondary" href="/tags/{{ . | urlize}}">{{ . }}</a>
+            {{ end }}
+        {{ end }}
+
+        {{ with .Params.build }}
+            <a class="badge text-bg-secondary" href="/tags/{{.branch | urlize}}">{{.branch}}</a>
+            <a class="badge text-bg-secondary" href="https://github.com/bitcoin/bitcoin/commit/{{ .changeIdInRepo}}">{{.changeIdInRepo}}</a>
+        {{ end }}
+
+        <br><br><br>
+
+        {{ with .Params.stats }}
+            <ul>
+                {{ range $k, $v := .  }}
+                    {{ if gt $v 0 }}
+                    <li>
+                        <span class="text-muted">{{ $k }}</span>
+                        {{ if gt $v 1 }}
+                            {{ $durationString := printf "%ds" ( $v | int) }}
+                            <td>{{ time.ParseDuration $durationString }}</td>
+                        {{ else }}
+                            <td>{{ $v }}</td>
+                        {{ end }}
+                    </li>
+                    {{ end }}
+                {{ end }}
+            </ul>
+        {{ end }}
+
+        {{ $id := .Params.id }}
+        {{ $duration := .Params.duration }}
+        {{ with .Params.commands }}
+            <h5>Commands taking longer than 1 second</h5>
+            <table class="table">
+                <thead>
+                    <th>line</th>
+                    <th>duration</th>
+                    <th>percentage</th>
+                    <th>command</th>
+                </thead>
+                <tbody>
+                {{ range . }}
+                    <tr>
+                        <td>
+                            <a href="https://cirrus-ci.com/task/{{ $id }}?logs=ci#L{{.line}}" target="_blank">
+                                {{ .line }}
+                            </a>
+                        </td>
+                        {{ $durationString := printf "%ds" ( .duration | int) }}
+
+                        {{ $durationPercentage := (div .duration (add $duration 0.01) | mul 100 | int) }}
+                        <td>
+                            {{ time.ParseDuration $durationString }}
+                        </td>
+                        <td>
+                            {{ $durationPercentage }}%
+                        </td>
+                        <td><code>{{ .cmd }}</code></td>
+                    </tr>
+                {{ end }}
+                </tbody>
+            </table>
+        {{ end }}
+
+        {{ with .Params.tags }}
+            <h5>Tags</h5>
+            <lu class="tags">
+                {{ range . }}
+                    <li><a href="{{ "tags/" | absURL }}{{ . | urlize }}">{{ . }}</a></li>
+                {{ end }}
+            </lu>
+        {{ end}}
+
+    </section>
+{{ end }}

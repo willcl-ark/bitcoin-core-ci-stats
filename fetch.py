@@ -7,18 +7,20 @@ import unittest
 
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
+LAST_BUILDS_TO_QUERY = 400
 TASK_QUERY = """
     query OwnerRepositoryQuery(
       $platform: String!
       $owner: String!
       $name: String!
+      $builds: Int!
     ) {
       ownerRepository(platform: $platform, owner: $owner, name: $name) {
         id
         platform
         owner
         name
-        builds(last: 1) {
+        builds(last: $builds) {
           edges {
             node {
               id
@@ -135,9 +137,7 @@ class Command:
         return {
             "cmd": self.cmd,
             "line": self.line,
-            # "start": self.start.strftime("%H:%M:%S"),
-            "duration": str(self.duration),
-            # "output": self.output,
+            "duration": self.duration.total_seconds(),
         }
 
 
@@ -170,7 +170,7 @@ class TaskRuntimeStats:
         if "docker build" in command.cmd:
             self.docker_build_duration = int(command.duration.total_seconds())
             for line in command.output:
-                if " CACHED" in line:
+                if " CACHED" in line or command.duration.total_seconds() < 10:
                     self.docker_build_cached = True
                     break
         if "ccache --zero-stats" == command.cmd:
@@ -195,6 +195,7 @@ class TaskRuntimeStats:
             self.functional_test_duration = int(
                 command.duration.total_seconds())
 
+
 def fetch_cirrus_ci_task_log(id) -> tuple[int, str]:
     URL = f"https://api.cirrus-ci.com/v1/task/{id}/logs/ci.log"
     response = requests.get(URL)
@@ -208,6 +209,7 @@ def fetch_cirrus_ci_tasks(owner="bitcoin", repository="bitcoin") -> list:
             "owner": owner,
             "name": repository,
             "platform": "github",
+            "builds": LAST_BUILDS_TO_QUERY,
         }
     }
 
@@ -288,18 +290,13 @@ def main():
     unittest.main(exit=False)
 
     tasks = fetch_cirrus_ci_tasks(owner="0xB10C")
-    tasks = [update_task_with_log(task) for task in tasks]
-
-    print("parsing logs..")
-    tasks = [update_task_with_parsed_log(task) for task in tasks]
+    tasks = [update_task_with_parsed_log(
+        update_task_with_log(task)) for task in tasks]
 
     print("writing tasks..")
     with open("tasks.json", "w") as f:
         json.dump([t.to_dict() for t in tasks], f, indent=2)
 
-
-if __name__ == "__main__":
-    main()
 
 # unit tests
 
@@ -312,7 +309,7 @@ class TestTaskRuntimeStats(unittest.TestCase):
         stats.process_command(c)
         self.assertEqual(stats.docker_build_duration, DURATION)
 
-    def test_docker_build_cached(self):
+    def test_docker_build_cached_by_output(self):
         c = Command(cmd="docker build --file /tmp/cirrus-build/ci/test_imagefile --build-arg CI_IMAGE_NAME_TAG=docker.io/ubuntu:24.04 --build-arg FILE_ENV=./ci/test/00_setup_env_mac_cross.sh --label=bitcoin-ci-test --tag=ci_macos_cross", start=0, line=0)
         c.output = [
             "[10:06:36.093] #7 [2/4] COPY ./ci/retry/retry /usr/bin/retry",
@@ -321,10 +318,38 @@ class TestTaskRuntimeStats(unittest.TestCase):
             "[10:06:36.093] #8 [3/4] COPY ./ci/test/00_setup_env.sh ././ci/test/00_setup_env_native_nowallet_libbitcoinkernel.sh ./ci/test/01_base_install.sh /ci_container_base/ci/test/",
             "[10:06:36.093] #8 CACHED",
         ]
-        c.duration = timedelta(seconds=0)
+        c.duration = timedelta(seconds=10000)
         stats = TaskRuntimeStats()
         stats.process_command(c)
         self.assertEqual(stats.docker_build_cached, True)
+
+    def test_docker_build_cached_by_duration(self):
+        c = Command(cmd="docker build --file /tmp/cirrus-build/ci/test_imagefile --build-arg CI_IMAGE_NAME_TAG=docker.io/ubuntu:24.04 --build-arg FILE_ENV=./ci/test/00_setup_env_mac_cross.sh --label=bitcoin-ci-test --tag=ci_macos_cross", start=0, line=0)
+        c.output = [
+            "[10:06:36.093] #7 [2/4] COPY ./ci/retry/retry /usr/bin/retry",
+            "[10:06:36.093] #7 ABCDEF",
+            "[10:06:36.093]",
+            "[10:06:36.093] #8 [3/4] COPY ./ci/test/00_setup_env.sh ././ci/test/00_setup_env_native_nowallet_libbitcoinkernel.sh ./ci/test/01_base_install.sh /ci_container_base/ci/test/",
+            "[10:06:36.093] #8 ABCDEF",
+        ]
+        c.duration = timedelta(seconds=2)
+        stats = TaskRuntimeStats()
+        stats.process_command(c)
+        self.assertEqual(stats.docker_build_cached, True)
+
+    def test_docker_build_not_cached(self):
+        c = Command(cmd="docker build --file /tmp/cirrus-build/ci/test_imagefile --build-arg CI_IMAGE_NAME_TAG=docker.io/ubuntu:24.04 --build-arg FILE_ENV=./ci/test/00_setup_env_mac_cross.sh --label=bitcoin-ci-test --tag=ci_macos_cross", start=0, line=0)
+        c.output = [
+            "[10:06:36.093] #7 [2/4] COPY ./ci/retry/retry /usr/bin/retry",
+            "[10:06:36.093] #7 ABCDEF",
+            "[10:06:36.093]",
+            "[10:06:36.093] #8 [3/4] COPY ./ci/test/00_setup_env.sh ././ci/test/00_setup_env_native_nowallet_libbitcoinkernel.sh ./ci/test/01_base_install.sh /ci_container_base/ci/test/",
+            "[10:06:36.093] #8 ABCDEF",
+        ]
+        c.duration = timedelta(seconds=100)
+        stats = TaskRuntimeStats()
+        stats.process_command(c)
+        self.assertEqual(stats.docker_build_cached, False)
 
     def test_ccache_zerostats_duration(self):
         DURATION = 4
@@ -343,10 +368,19 @@ class TestTaskRuntimeStats(unittest.TestCase):
         stats.process_command(c)
         self.assertEqual(stats.configure_duration, DURATION)
 
-    def test_depends_build_duration(self):
+    def test_depends_build_duration1(self):
         DURATION = 6
         c = Command(
             cmd="bash -c 'CONFIG_SHELL= make -j10 -C depends HOST=x86_64-apple-darwin  LOG=1'", start=0, line=0)
+        c.duration = timedelta(seconds=DURATION)
+        stats = TaskRuntimeStats()
+        stats.process_command(c)
+        self.assertEqual(stats.depends_build_duration, DURATION)
+
+    def test_depends_build_duration2(self):
+        DURATION = 17
+        c = Command(
+            cmd="bash -c 'CONFIG_SHELL= make -j10 -C depends HOST=x86_64-pc-linux-gnu DEBUG=1 CC=gcc-11 CXX=g++-11 LOG=1'", start=0, line=0)
         c.duration = timedelta(seconds=DURATION)
         stats = TaskRuntimeStats()
         stats.process_command(c)
@@ -379,3 +413,7 @@ class TestTaskRuntimeStats(unittest.TestCase):
         stats = TaskRuntimeStats()
         stats.process_command(c)
         self.assertEqual(stats.ccache_hitrate, HITRATE)
+
+
+if __name__ == "__main__":
+    main()

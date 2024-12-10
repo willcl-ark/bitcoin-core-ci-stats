@@ -1,0 +1,90 @@
+<tr {{ if ne .Params.status "COMPLETED" }} class="tasks-that-are-not-complete"{{ end }}>
+    <td>
+        {{ div .Params.creationTimestamp 1000 | int | dateFormat "2006-01-02 15:04:05" }}
+    </td>
+    <td>
+        <a href="/task/{{.Params.id | urlize }}">{{.Params.id}}</a>
+    </td>
+    <td>
+        <a href="/tags/{{.Params.name | urlize}}">{{.Params.name}}</a>
+    </td>
+    <td>
+        {{ with .Params.status }}
+            <a href="/tags/{{ . | urlize}}">
+                {{ if eq . "COMPLETED" }}
+                    <span class="badge text-bg-success">completed</span>
+                {{ else if eq . "FAILED" }}
+                    <span class="badge text-bg-danger">failed</span>
+                {{ else if eq . "ABORTED" }}
+                    <span class="badge text-bg-warning">aborted</span>
+                {{ else }}
+                    {{ . }}
+                {{ end }}
+            </a>
+        {{ end }}
+    </td>
+    <td>
+        {{ $durationString := printf "%ds" (.Params.duration | int) }}
+        {{ time.ParseDuration $durationString }}
+    </td>
+    <td>
+        {{ with .Params.build }}
+            <a href="/tags/{{ .branch | urlize}}">{{.branch}}</a>
+        {{ end }}
+    </td>
+
+    <!-- stats -->
+
+    <td>
+        {{ with .Params.stats.docker_build_cached }}
+            {{ if eq "true" (printf "%v" .) }}
+                <span class="badge text-bg-success">cached</span>
+            {{ else }}
+                <span class="badge text-bg-warning">rebuild</span>
+            {{ end }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.docker_build_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.docker_build_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.ccache_zerostats_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.ccache_zerostats_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.configure_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.configure_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.depends_build_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.depends_build_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.build_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.build_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>{{ .Params.stats.ccache_hitrate }}</td>
+    <td>
+        {{ if ne .Params.stats.unit_test_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.unit_test_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+    <td>
+        {{ if ne .Params.stats.functional_test_duration -1.0 }}
+            {{ $durationString := printf "%ds" (.Params.stats.functional_test_duration | int) }}
+            {{ time.ParseDuration $durationString }}
+        {{ end }}
+    </td>
+</tr>

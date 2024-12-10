@@ -1,0 +1,48 @@
+{{/* Get remote data. */}}
+{{ $data := dict }}
+{{ $path := "tasks.json" }}
+{{ with resources.Get $path }}
+  {{ with .Err }}
+    {{ errorf "Unable to get resource %s: %s" $path . }}
+  {{ else }}
+    {{ $data = . | transform.Unmarshal }}
+  {{ end }}
+{{ else }}
+  {{ errorf "Unable to get resource %s" $path }}
+{{ end }}
+
+{{/* Add pages and page resources. */}}
+{{ range $data }}
+
+  {{/* Add page. */}}
+  {{ $content := dict "mediaType" "text/markdown" "value" .name }}
+  {{ $title := print (print "Task " .id) }}
+  {{ $dates := dict
+      "date" (time.AsTime (div .creationTimestamp 1000 | int ))
+  }}
+  {{ $tags := slice (index .executionInfoLabels 0) .name .build.branch .status }}
+  {{ $params := dict
+    "commands" .commands
+    "duration" .duration
+    "stats" .runtime_stats
+    "status" .status
+    "executionInfoLabels" .executionInfoLabels
+    "tags" $tags
+    "id" .id
+    "name" .name
+    "build" .build
+    "creationTimestamp" .creationTimestamp
+    "scheduledTimestamp" .scheduledTimestamp
+    "executingTimestamp" .executingTimestamp
+  }}
+  {{ $page := dict
+    "content" $content
+    "summary" .name
+    "dates" $dates
+    "params" $params
+    "kind" "page"
+    "path" .id
+    "title" $title
+  }}
+  {{ $.AddPage $page }}
+{{ end }}

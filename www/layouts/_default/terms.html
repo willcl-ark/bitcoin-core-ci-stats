@@ -1,0 +1,18 @@
+{{ define "main" }}
+<section id="tags">
+    {{ $data := .Data }}
+    <ul>
+        {{ range $key, $value := .Data.Terms.ByCount }}
+            {{ if ($value.Name) }}
+                <li>
+                <a href="{{ "tags/" | relURL }}{{ $value.Name | urlize }}">
+                    <span class="badge text-bg-secondary">
+                        {{ $value.Name }} <span>({{ $value.Count }})</span>
+                    </span>
+                </a>
+                </li>
+            {{ end }}
+        {{ end }}
+    </ul>
+</section>
+{{ end }}

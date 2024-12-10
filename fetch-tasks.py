@@ -11,6 +11,7 @@ import argparse
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
 LAST_BUILDS_TO_QUERY = 400
+FILENAME = "tasks.json"
 TASK_QUERY = """
     query OwnerRepositoryQuery(
       $platform: String!
@@ -92,22 +93,23 @@ class Build:
 
 
 class Task:
-    def __init__(self, api_response):
-        self.id: int = api_response["id"]
-        self.status: str = api_response["status"]
-        self.name: str = api_response["name"]
-        self.creationTimestamp: int = api_response["creationTimestamp"]
-        self.scheduledTimestamp: int = api_response["scheduledTimestamp"]
-        self.executingTimestamp: int = api_response["executingTimestamp"]
-        self.duration: int = api_response["durationInSeconds"]
-        self.finalStatusTimestamp: int = api_response["finalStatusTimestamp"]
-        self.executionInfoLabels: list[str] = api_response["executionInfo"][
-            "labels"] if "labels" in api_response["executionInfo"] else []
-        self.build: Build = Build(api_response=api_response["build"])
-        self.log: str = ""
-        self.log_status_code: int = 0
-        self.commands: list[Command] = []
-        self.runtime_stats = TaskRuntimeStats()
+    def __init__(self, d):
+        self.id: int = d["id"]
+        self.status: str = d["status"]
+        self.name: str = d["name"]
+        self.creationTimestamp: int = d["creationTimestamp"]
+        self.scheduledTimestamp: int = d["scheduledTimestamp"]
+        self.executingTimestamp: int = d["executingTimestamp"]
+        self.duration: int = d["durationInSeconds"] if "durationInSeconds" in d else d["duration"]
+        self.finalStatusTimestamp: int = d["finalStatusTimestamp"]
+        self.executionInfoLabels: list[str] = d["executionInfoLabels"] if "executionInfoLabels" in d else d["executionInfo"][
+            "labels"] if "labels" in d["executionInfo"] else []
+        self.build: Build = Build(api_response=d["build"])
+        self.log: str = d["log"] if "log" in d else ""
+        self.log_status_code: int = d["log_status_code"] if "log_status_code" in d else 0
+        self.commands: list[Command] = d["commands"] if "commands" in d else []
+        self.runtime_stats = d["runtime_stats"] if "runtime_stats" in d else TaskRuntimeStats(
+        )
 
     def to_dict(self):
         return {
@@ -124,7 +126,7 @@ class Task:
             "log": self.log,
             "log_status_code": self.log_status_code,
             "commands": [c.to_dict() for c in self.commands],
-            "runtime_stats": self.runtime_stats.to_dict()
+            "runtime_stats": self.runtime_stats if type(self.runtime_stats) == dict else self.runtime_stats.to_dict()
         }
 
 
@@ -283,8 +285,8 @@ def update_task_with_log(task: Task) -> Task:
         code, text = fetch_cirrus_ci_task_log(task.id)
         task.log_status_code = code
         task.log = text
-        print(f"fetched log for task {task.id} ({task.name}): {
-              code} - {len(task.log.split("\n"))} log lines")
+        print(f"fetched log for task {task.id} ({task.name}):"
+              + f"{code} - {len(task.log.split("\n"))} log lines")
     return task
 
 
@@ -292,30 +294,62 @@ def get_and_process_logs_for_task(task: Task):
     return update_task_with_parsed_log(update_task_with_log(task))
 
 
+def merge_tasks(new: list[Task], old: list[Task]):
+    merged = {}
+    for a in new:
+        merged[a.id] = a
+
+    for b in old:
+        if b.id in merged:
+            merged[b.id].log = b.log
+            merged[b.id].log_status_code = b.log_status_code
+            merged[b.id].runtime_stats = b.runtime_stats
+            merged[b.id].commands = b.commands
+        else:
+            merged[b.id] = b
+    return list(merged.values())
+
+
+def try_loading_existing_tasks() -> list[Task]:
+    tasks = []
+    try:
+        with open(FILENAME, "r") as f:
+            tasks = json.load(f)
+    except Exception as e:
+        print(f"Starting with empty task list: {e}")
+    return [Task(d=task) for task in tasks]
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="A program fetch Cirrus CI tasks.")
-
-    parser.add_argument('--owner', type=str, default='bitcoin',
-                        help='Owner of the repository (default: "bitcoin")')
-    parser.add_argument('--repository', type=str, default='bitcoin',
-                        help='Name of the repository (default: "bitcoin")')
-    parser.add_argument('--builds', type=int, default=LAST_BUILDS_TO_QUERY,
-                        help=f'Number of builds to fetch (default: {LAST_BUILDS_TO_QUERY})')
-
+    parser.add_argument("--owner", type=str, default="bitcoin",
+                        help="Owner of the repository (default: 'bitcoin')")
+    parser.add_argument("--repository", type=str, default="bitcoin",
+                        help="Name of the repository (default: 'bitcoin')")
+    parser.add_argument("--builds", type=int, default=LAST_BUILDS_TO_QUERY,
+                        help=f"Number of builds to fetch (default: {LAST_BUILDS_TO_QUERY})")
     args = parser.parse_args()
 
-    unittest.main(exit=False, verbosity=0)
+    print("running self-tests:")
+    unittest.main(exit=False, verbosity=0, argv=["tests"])
+
+    print(f"try loading existing tasks from {FILENAME}")
+    existing_tasks = try_loading_existing_tasks()
 
     print("querying tasks from API...")
     tasks = fetch_cirrus_ci_tasks(
         owner=args.owner, repository=args.repository, builds=args.builds)
 
+    tasks = merge_tasks(tasks, existing_tasks)
+
     pool = Pool(processes=os.cpu_count() * 4)
     tasks = pool.map(get_and_process_logs_for_task, tasks)
 
+    tasks.sort(key=lambda t: t.creationTimestamp)
+
     print("writing tasks..")
-    with open("tasks.json", "w") as f:
+    with open(FILENAME, "w") as f:
         json.dump([t.to_dict() for t in tasks], f, indent=2)
 
 

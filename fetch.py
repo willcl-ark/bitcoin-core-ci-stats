@@ -6,6 +6,7 @@ import re
 import os
 import unittest
 from multiprocessing import Pool
+import argparse
 
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
@@ -292,11 +293,23 @@ def get_and_process_logs_for_task(task: Task):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="A program fetch Cirrus CI tasks.")
+
+    parser.add_argument('--owner', type=str, default='bitcoin',
+                        help='Owner of the repository (default: "bitcoin")')
+    parser.add_argument('--repository', type=str, default='bitcoin',
+                        help='Name of the repository (default: "bitcoin")')
+    parser.add_argument('--builds', type=int, default=LAST_BUILDS_TO_QUERY,
+                        help=f'Number of builds to fetch (default: {LAST_BUILDS_TO_QUERY})')
+
+    args = parser.parse_args()
 
     unittest.main(exit=False, verbosity=0)
 
     print("querying tasks from API...")
-    tasks = fetch_cirrus_ci_tasks(owner="0xB10C")
+    tasks = fetch_cirrus_ci_tasks(
+        owner=args.owner, repository=args.repository, builds=args.builds)
 
     pool = Pool(processes=os.cpu_count() * 4)
     tasks = pool.map(get_and_process_logs_for_task, tasks)

@@ -34,10 +34,9 @@
     </td>
 
     <!-- stats -->
-
     <td>
-        {{ with .Params.stats.docker_build_cached }}
-            {{ if eq "true" (printf "%v" .) }}
+        {{ with .Params.stats }}
+            {{ if eq "true" (printf "%v" .docker_build_cached) }}
                 <span class="badge text-bg-success">cached</span>
             {{ else }}
                 <span class="badge text-bg-warning">rebuild</span>

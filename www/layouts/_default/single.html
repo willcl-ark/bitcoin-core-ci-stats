@@ -41,7 +41,17 @@
                 {{ range $k, $v := .  }}
                     {{ if gt $v 0 }}
                     <li>
-                        <span class="text-muted">{{ $k }}</span>
+                        <span class="text-muted">{{ $k }}:</span>
+                        {{ if gt $v 1 }}
+                            {{ $durationString := printf "%ds" ( $v | int) }}
+                            <td>{{ time.ParseDuration $durationString }}</td>
+                        {{ else }}
+                            <td>{{ $v }}</td>
+                        {{ end }}
+                    </li>
+                    {{ else if eq (printf "%T" $v) "string" }}
+                    <li>
+                        <span class="text-muted">{{ $k }}:</span>
                         {{ if gt $v 1 }}
                             {{ $durationString := printf "%ds" ( $v | int) }}
                             <td>{{ time.ParseDuration $durationString }}</td>
@@ -56,8 +66,9 @@
 
         {{ $id := .Params.id }}
         {{ $duration := .Params.duration }}
+        {{ $durationString := printf "%ds" ( $duration | int) }}
         {{ with .Params.commands }}
-            <h5>Commands taking longer than 1 second</h5>
+            <h5>Commands that took longer than 1 second (total {{time.ParseDuration $durationString}})</h5>
             <table class="table">
                 <thead>
                     <th>line</th>

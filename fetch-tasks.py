@@ -285,8 +285,9 @@ def update_task_with_log(task: Task) -> Task:
         code, text = fetch_cirrus_ci_task_log(task.id)
         task.log_status_code = code
         task.log = text
+        log_lines = len(task.log.split('\n'))
         print(f"fetched log for task {task.id} ({task.name}):"
-              + f"{code} - {len(task.log.split("\n"))} log lines")
+              + f"{code} - {log_lines} log lines")
     return task
 
 

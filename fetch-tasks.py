@@ -332,6 +332,10 @@ def main():
     # filter out known tasks. no need to fetch them again
     tasks = filter(lambda t: t.id not in known_task_ids, tasks)
 
+    # We don't care about lint tasks at the moment. They don't have a log called
+    # ci.log.
+    tasks = list(filter(lambda t: t.name != "lint", tasks))
+
     pool = Pool(processes=os.cpu_count() * 2)
     tasks = pool.map(get_and_process_logs_for_task, tasks)
 

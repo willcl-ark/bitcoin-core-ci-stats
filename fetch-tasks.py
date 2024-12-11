@@ -11,6 +11,7 @@ import argparse
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
 LAST_BUILDS_TO_QUERY = 400
+STATUS_EXECUTING = "EXECUTING"
 FILENAME = "tasks.json"
 TASK_QUERY = """
     query OwnerRepositoryQuery(
@@ -100,16 +101,15 @@ class Task:
         self.creationTimestamp: int = d["creationTimestamp"]
         self.scheduledTimestamp: int = d["scheduledTimestamp"]
         self.executingTimestamp: int = d["executingTimestamp"]
-        self.duration: int = d["durationInSeconds"] if "durationInSeconds" in d else d["duration"]
+        self.duration: int = d["durationInSeconds"]
         self.finalStatusTimestamp: int = d["finalStatusTimestamp"]
-        self.executionInfoLabels: list[str] = d["executionInfoLabels"] if "executionInfoLabels" in d else d["executionInfo"][
-            "labels"] if "labels" in d["executionInfo"] else []
+        self.executionInfoLabels: list[str] = d["executionInfo"]["labels"] if "labels" in d["executionInfo"] else []
         self.build: Build = Build(api_response=d["build"])
-        self.log: str = d["log"] if "log" in d else ""
-        self.log_status_code: int = d["log_status_code"] if "log_status_code" in d else 0
-        self.commands: list[Command] = d["commands"] if "commands" in d else []
-        self.runtime_stats = d["runtime_stats"] if "runtime_stats" in d else TaskRuntimeStats(
-        )
+
+        self.log: str = ""
+        self.log_status_code: int = 0
+        self.commands: list[Command] = []
+        self.runtime_stats = TaskRuntimeStats()
 
     def to_dict(self):
         return {
@@ -142,7 +142,7 @@ class Command:
         return {
             "cmd": self.cmd,
             "line": self.line,
-            "duration": self.duration.total_seconds(),
+            "duration": int(self.duration.total_seconds()),
         }
 
 
@@ -156,7 +156,7 @@ class TaskRuntimeStats:
         self.build_duration = -1
         self.unit_test_duration = -1
         self.functional_test_duration = -1
-        self.depends_duration = -1
+        self.depends_build_duration = -1
 
     def to_dict(self):
         return {
@@ -164,7 +164,7 @@ class TaskRuntimeStats:
             "docker_build_duration": self.docker_build_duration,
             "ccache_zerostats_duration": self.ccache_zerostats_duration,
             "configure_duration": self.configure_duration,
-            "depends_build_duration": self.depends_duration,
+            "depends_build_duration": self.depends_build_duration,
             "build_duration": self.build_duration,
             "ccache_hitrate": self.ccache_hitrate,
             "unit_test_duration": self.unit_test_duration,
@@ -227,9 +227,13 @@ def fetch_cirrus_ci_tasks(owner="bitcoin", repository="bitcoin", builds=LAST_BUI
             build = build_node["node"]
             latestTasks = build["latestGroupTasks"]
             for latestTask in latestTasks:
-                tasks.append(Task(latestTask))
+                # don't add STATUS_EXECUTING tasks. We'll add them once they
+                # are finished (in the next run)
+                if latestTask["status"] != STATUS_EXECUTING:
+                    tasks.append(Task(latestTask))
                 for otherTasks in latestTask["allOtherRuns"]:
-                    tasks.append(Task(otherTasks))
+                    if otherTasks["status"] != STATUS_EXECUTING:
+                        tasks.append(Task(otherTasks))
         return tasks
     else:
         print(f"Error: {response.status_code} - {response.text}")
@@ -295,30 +299,14 @@ def get_and_process_logs_for_task(task: Task):
     return update_task_with_parsed_log(update_task_with_log(task))
 
 
-def merge_tasks(new: list[Task], old: list[Task]):
-    merged = {}
-    for a in new:
-        merged[a.id] = a
-
-    for b in old:
-        if b.id in merged:
-            merged[b.id].log = b.log
-            merged[b.id].log_status_code = b.log_status_code
-            merged[b.id].runtime_stats = b.runtime_stats
-            merged[b.id].commands = b.commands
-        else:
-            merged[b.id] = b
-    return list(merged.values())
-
-
-def try_loading_existing_tasks() -> list[Task]:
+def try_loading_existing_task_ids() -> list[int]:
     tasks = []
     try:
         with open(FILENAME, "r") as f:
             tasks = json.load(f)
     except Exception as e:
         print(f"Starting with empty task list: {e}")
-    return [Task(d=task) for task in tasks]
+    return [task["id"] for task in tasks]
 
 
 def main():
@@ -335,23 +323,41 @@ def main():
     print("running self-tests:")
     unittest.main(exit=False, verbosity=0, argv=["tests"])
 
-    print(f"try loading existing tasks from {FILENAME}")
-    existing_tasks = try_loading_existing_tasks()
+    known_task_ids = try_loading_existing_task_ids()
 
     print("querying tasks from API...")
     tasks = fetch_cirrus_ci_tasks(
         owner=args.owner, repository=args.repository, builds=args.builds)
 
-    tasks = merge_tasks(tasks, existing_tasks)
+    # filter out known tasks. no need to fetch them again
+    tasks = filter(lambda t: t.id not in known_task_ids, tasks)
 
-    pool = Pool(processes=os.cpu_count() * 4)
+    pool = Pool(processes=os.cpu_count() * 2)
     tasks = pool.map(get_and_process_logs_for_task, tasks)
 
-    tasks.sort(key=lambda t: t.creationTimestamp)
+    # sometimes the Cirrus log fetch returns an error 500. Drop these from our
+    # data so they can be re-requested in the next run.
+    tasks = list(filter(lambda t: t.log_status_code != 500, tasks))
 
-    print("writing tasks..")
-    with open(FILENAME, "w") as f:
-        json.dump([t.to_dict() for t in tasks], f, indent=2)
+    if len(tasks) == 0:
+        print("no new tasks..")
+        return
+    else:
+        print(f"writing {len(tasks)} new tasks")
+        # if there are entries in known_task_ids, we need to merge the existing
+        # with the new task list
+        tasksAsDicts = []
+        if len(known_task_ids) > 0:
+            with open(FILENAME, "r") as f:
+                tasksAsDicts = json.load(f)
+
+        # append new tasks
+        for task in tasks:
+            tasksAsDicts.append(task.to_dict())
+
+        tasksAsDicts.sort(key=lambda t: t["creationTimestamp"])
+        with open(FILENAME, "w") as f:
+            json.dump(tasksAsDicts, f, indent=2)
 
 
 # unit tests

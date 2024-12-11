@@ -5,6 +5,9 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch:
+concurrency:
+  group: "fetch"
+  cancel-in-progress: false
 jobs:
   bitcoin-bitcoin-tasks:
     runs-on: ubuntu-24.04

@@ -25,12 +25,12 @@
 
         {{ with .Params.executionInfoLabels }}
             {{ range . }}
-                <a class="badge text-bg-secondary" href="/tags/{{ . | urlize}}">{{ . }}</a>
+                <a class="badge text-bg-secondary" href="{{ relURL "tags"}}/{{ . | urlize}}">{{ . }}</a>
             {{ end }}
         {{ end }}
 
         {{ with .Params.build }}
-            <a class="badge text-bg-secondary" href="/tags/{{.branch | urlize}}">{{.branch}}</a>
+            <a class="badge text-bg-secondary" href="{{ relURL "tags"}}/{{.branch | urlize}}">{{.branch}}</a>
             <a class="badge text-bg-secondary" href="https://github.com/bitcoin/bitcoin/commit/{{ .changeIdInRepo}}">{{.changeIdInRepo}}</a>
         {{ end }}
 
@@ -104,7 +104,7 @@
             <h5>Tags</h5>
             <lu class="tags">
                 {{ range . }}
-                    <li><a href="{{ "tags/" | absURL }}{{ . | urlize }}">{{ . }}</a></li>
+                    <li><a href="{{ relURL "tags"}}/{{ . | urlize }}">{{ . }}</a></li>
                 {{ end }}
             </lu>
         {{ end}}

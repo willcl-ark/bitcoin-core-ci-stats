@@ -5,7 +5,7 @@
         {{ range $key, $value := .Data.Terms.ByCount }}
             {{ if ($value.Name) }}
                 <li>
-                <a href="{{ "tags/" | relURL }}{{ $value.Name | urlize }}">
+                <a href="{{ relURL "tags"}}/{{ $value.Name | urlize }}">
                     <span class="badge text-bg-secondary">
                         {{ $value.Name }} <span>({{ $value.Count }})</span>
                     </span>

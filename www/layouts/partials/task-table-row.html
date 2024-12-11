@@ -3,14 +3,14 @@
         {{ div .Params.creationTimestamp 1000 | int | dateFormat "2006-01-02 15:04:05" }}
     </td>
     <td>
-        <a href="/task/{{.Params.id | urlize }}">{{.Params.id}}</a>
+        <a href="{{ relURL "task"}}/{{.Params.id | urlize }}">{{.Params.id}}</a>
     </td>
     <td>
-        <a href="/tags/{{.Params.name | urlize}}">{{.Params.name}}</a>
+        <a href="{{ relURL "tags"}}/{{.Params.name | urlize}}">{{.Params.name}}</a>
     </td>
     <td>
         {{ with .Params.status }}
-            <a href="/tags/{{ . | urlize}}">
+            <a href="{{ relURL "tags"}}/{{ . | urlize}}">
                 {{ if eq . "COMPLETED" }}
                     <span class="badge text-bg-success">completed</span>
                 {{ else if eq . "FAILED" }}
@@ -29,7 +29,7 @@
     </td>
     <td>
         {{ with .Params.build }}
-            <a href="/tags/{{ .branch | urlize}}">{{.branch}}</a>
+            <a href="{{ relURL "tags"}}/{{ .branch | urlize}}">{{.branch}}</a>
         {{ end }}
     </td>
 

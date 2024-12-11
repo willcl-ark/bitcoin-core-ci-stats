@@ -340,8 +340,10 @@ def main():
     tasks = pool.map(get_and_process_logs_for_task, tasks)
 
     # sometimes the Cirrus log fetch returns an error 500. Drop these from our
-    # data so they can be re-requested in the next run.
+    # data so they can be re-requested in the next run. Same for tasks with a
+    # 404 log.
     tasks = list(filter(lambda t: t.log_status_code != 500, tasks))
+    tasks = list(filter(lambda t: t.log_status_code != 404, tasks))
 
     if len(tasks) == 0:
         print("no new tasks..")

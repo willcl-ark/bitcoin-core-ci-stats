@@ -11,7 +11,9 @@ import argparse
 MIN_COMMAND_DURAITON_SEC = 1
 CIRRUS_API_URL = "https://api.cirrus-ci.com/graphql"
 LAST_BUILDS_TO_QUERY = 400
-STATUS_EXECUTING = "EXECUTING"
+STATUS_FAILED = "FAILED"
+STATUS_ABORTED = "ABORTED"
+STATUS_COMPLETED = "COMPLETED"
 FILENAME = "tasks.json"
 TASK_QUERY = """
     query OwnerRepositoryQuery(
@@ -103,7 +105,8 @@ class Task:
         self.executingTimestamp: int = d["executingTimestamp"]
         self.duration: int = d["durationInSeconds"]
         self.finalStatusTimestamp: int = d["finalStatusTimestamp"]
-        self.executionInfoLabels: list[str] = d["executionInfo"]["labels"] if "labels" in d["executionInfo"] else []
+        self.executionInfoLabels: list[str] = d["executionInfo"]["labels"] if "labels" in d["executionInfo"] else [
+        ]
         self.build: Build = Build(api_response=d["build"])
 
         self.log: str = ""
@@ -227,12 +230,12 @@ def fetch_cirrus_ci_tasks(owner="bitcoin", repository="bitcoin", builds=LAST_BUI
             build = build_node["node"]
             latestTasks = build["latestGroupTasks"]
             for latestTask in latestTasks:
-                # don't add STATUS_EXECUTING tasks. We'll add them once they
-                # are finished (in the next run)
-                if latestTask["status"] != STATUS_EXECUTING:
+                # only add FAILED, ABORTED, COMPLETED tasks. We'll add the
+                # others once they are finished (in the next run)
+                if latestTask["status"] == STATUS_COMPLETED or latestTask["status"] == STATUS_FAILED or latestTask["status"] == STATUS_ABORTED:
                     tasks.append(Task(latestTask))
                 for otherTasks in latestTask["allOtherRuns"]:
-                    if otherTasks["status"] != STATUS_EXECUTING:
+                    if otherTasks["status"] == STATUS_COMPLETED or otherTasks["status"] == STATUS_FAILED or otherTasks["status"] == STATUS_ABORTED:
                         tasks.append(Task(otherTasks))
         return tasks
     else:

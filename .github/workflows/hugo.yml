@@ -49,6 +49,10 @@ jobs:
           mkdir -p www/assets
           wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/tasks.json
           mv tasks.json www/assets/tasks.json
+      - name: download graph.json
+        run: |
+          wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/graph.json
+          mv graph.json www/static/graph.json
       - name: Build with Hugo
         env:
           HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache

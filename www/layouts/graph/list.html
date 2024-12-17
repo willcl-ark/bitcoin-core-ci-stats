@@ -1,0 +1,99 @@
+{{ define "main" }}
+
+<h1>Graph</h1>
+
+<div>
+  <canvas id="myChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+
+<script>
+  // Load the JSON data from an external file
+  fetch('{{ relURL "graph.json"}}')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Extract unique names for coloring purposes
+      const uniqueNames = [...new Set(data.map(item => item.name))];
+
+      // Assign a random color to each unique name
+      const colorMap = {};
+      uniqueNames.forEach(name => {
+        colorMap[name] = `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
+      });
+
+      // Group data points by name
+      const datasets = uniqueNames.map(name => {
+        return {
+          label: name,
+          data: data
+            .filter(item => item.name === name)
+            .map(item => ({ x: item.created, y: item.duration })), // Use raw timestamp for x
+          borderColor: colorMap[name],
+          backgroundColor: colorMap[name],
+          fill: false,
+          tension: 0.1
+        };
+      });
+
+      // Create the Chart.js line chart
+      const ctx = document.getElementById('myChart').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              type: 'time', // Use time scale for x-axis
+              time: {
+                unit: 'day', // Adjust unit based on data (e.g., 'day', 'hour', 'minute')
+                tooltipFormat: 'PPpp', // Format for tooltip (uses date-fns)
+              },
+              title: {
+                display: true,
+                text: 'Created Timestamp'
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: 'Duration (MM:SS)'
+              },
+              ticks: {
+                callback: function (value) {
+                  const minutes = Math.floor(value / 60);
+                  const seconds = value % 60;
+                  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                }
+              },
+              beginAtZero: true
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top'
+            },
+            title: {
+              display: true,
+              text: 'Duration vs Created Timestamp'
+            }
+          }
+        }
+      });
+    })
+    .catch(error => {
+      console.error('Error loading the JSON data:', error);
+    });
+</script>
+
+{{ end }}

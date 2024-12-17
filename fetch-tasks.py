@@ -15,6 +15,7 @@ STATUS_FAILED = "FAILED"
 STATUS_ABORTED = "ABORTED"
 STATUS_COMPLETED = "COMPLETED"
 FILENAME = "tasks.json"
+FILENAME_GRAPH = "graph.json"
 TASK_QUERY = """
     query OwnerRepositoryQuery(
       $platform: String!
@@ -204,6 +205,21 @@ class TaskRuntimeStats:
                 command.duration.total_seconds())
 
 
+class GraphStats:
+    def __init__(self, task_dict):
+        self.id = task_dict["id"]
+        self.name = task_dict["name"]
+        self.duration = task_dict["duration"]
+        self.created = task_dict["creationTimestamp"]
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "duration": self.duration,
+            "created": self.created,
+        }
+
 def fetch_cirrus_ci_task_log(id) -> tuple[int, str]:
     URL = f"https://api.cirrus-ci.com/v1/task/{id}/logs/ci.log"
     response = requests.get(URL)
@@ -367,6 +383,10 @@ def main():
         tasksAsDicts.sort(key=lambda t: t["creationTimestamp"])
         with open(FILENAME, "w") as f:
             json.dump(tasksAsDicts, f, indent=2)
+
+        graphStats = [GraphStats(task).to_dict() for task in tasksAsDicts if task["status"] == STATUS_COMPLETED]
+        with open(FILENAME_GRAPH, "w") as f:
+            json.dump(graphStats, f, indent=2)
 
 
 # unit tests

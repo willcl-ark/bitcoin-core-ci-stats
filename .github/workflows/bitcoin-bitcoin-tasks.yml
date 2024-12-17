@@ -31,8 +31,8 @@ jobs:
       run: python3 fetch.py --builds 400 --owner bitcoin --repository bitcoin
     - name: Commit changes
       run: |
-        git add tasks.json
-        git commit -m "Auto updated tasks.json: $(date)" -a || true
+        git add tasks.json graph.json
+        git commit -m "Auto updated {graph,tasks}.json: $(date)" -a || true
     - name: Push changes
       uses: ad-m/github-push-action@master
       with:

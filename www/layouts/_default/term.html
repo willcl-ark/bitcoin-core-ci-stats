@@ -1,0 +1,10 @@
+{{ define "main" }}
+
+{{ $pages := .Data.Pages }}
+{{ $paginator := .Paginate $pages 1000 }}
+
+{{ partial "task-table.html" $paginator }}
+
+{{ template "_internal/pagination.html" . }}
+
+{{ end }}

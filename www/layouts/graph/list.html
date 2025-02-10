@@ -3,6 +3,7 @@
 <h1>Graph</h1>
 
 <div>
+  <ul id="radio-buttons"></ul>
   <canvas id="myChart"></canvas>
 </div>
 
@@ -11,6 +12,8 @@
 
 
 <script>
+  const radioContainer = document.getElementById("radio-buttons");
+
   // Load the JSON data from an external file
   fetch('{{ relURL "graph.json"}}')
     .then(response => {
@@ -21,8 +24,31 @@
     })
     .then(data => {
       // Extract unique names for coloring purposes
-      const uniqueNames = [...new Set(data.map(item => item.name))];
+      const uniqueNames = [...new Set(data.map(item => item.name))].sort();
+      const ctx = document.getElementById('myChart').getContext('2d');
 
+      // draw radio buttons for each chart
+      uniqueNames.forEach((name, index) => {
+        let radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "chart-selector";
+        radio.value = name;
+        radio.id = `radio-${name}`;
+        if (index === 0) radio.checked = true; // Default selection
+    
+        let label = document.createElement("label");
+        label.htmlFor = `radio-${name}`;
+        label.innerText = name;
+        label.classList.add("px-2")
+
+        radio.addEventListener("change", () => updateChart(name, index));
+        let li = document.createElement("li");
+
+        li.appendChild(radio);
+        li.appendChild(label);
+        radioContainer.appendChild(li);
+      });
+      
       // Assign a random color to each unique name
       const colorMap = {};
       uniqueNames.forEach(name => {
@@ -42,15 +68,15 @@
           tension: 0.1
         };
       });
-
+     
       // Create the Chart.js line chart
-      const ctx = document.getElementById('myChart').getContext('2d');
-      new Chart(ctx, {
+      let currentChart = new Chart(ctx, {
         type: 'line',
         data: {
-          datasets: datasets
+          datasets: [datasets[0]],
         },
         options: {
+          animation: false,
           responsive: true,
           scales: {
             x: {
@@ -90,6 +116,12 @@
           }
         }
       });
+
+      function updateChart(selectedName, index) {
+        currentChart.data.datasets = [datasets[index]];
+        currentChart.update();
+      }
+
     })
     .catch(error => {
       console.error('Error loading the JSON data:', error);

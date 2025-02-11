@@ -1,6 +1,6 @@
 {{ define "main" }}
 
-<h1>Graph {{ .Title }}</h1>
+<h1>Graph: {{ .Title }}</h1>
 
 {{ .Content }}
 
@@ -85,7 +85,14 @@
         titleText = "task schedule + execution duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created, y: item.duration + item.scheduleDuration, task: item.id })) 
+            .map(item => ({ x: item.created, y: item.duration + (item.scheduleDuration / 1000), task: item.id })) 
+      {{ end }}
+      // for SCHEDULE-DURATION chart
+      {{ with (eq .Params.graph "schedule") }}
+        titleText = "task scheduling duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .map(item => ({ x: item.created, y: (item.scheduleDuration / 1000), task: item.id })) 
       {{ end }}
       // for CCACHE chart
       {{ with (eq .Params.graph "ccache") }}

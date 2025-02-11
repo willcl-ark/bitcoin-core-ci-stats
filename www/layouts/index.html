@@ -1,6 +1,6 @@
 {{ define "main" }}
 
-{{ $pages := site.RegularPages }}
+{{ $pages := where site.RegularPages "File.Dir" "task/" }}
 {{ $paginator := .Paginate $pages 1000 }}
 
 {{ partial "task-table.html" $paginator }}

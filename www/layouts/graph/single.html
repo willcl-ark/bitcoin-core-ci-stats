@@ -6,7 +6,9 @@
 
 <div>
   <ul id="radio-buttons"></ul>
-  <canvas id="myChart"></canvas>
+  <div id="charts">
+    <!-- filled by js -->
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -25,34 +27,12 @@
       return response.json();
     })
     .then(data => {
-      const uniqueNames = [...new Set(data.map(item => item.name))].sort();
-      const ctx = document.getElementById('myChart').getContext('2d');
-
-      // draw radio buttons for each chart
-      uniqueNames.forEach((name, index) => {
-        let radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = "chart-selector";
-        radio.value = name;
-        radio.id = `radio-${name}`;
-        if (index === 0) radio.checked = true; // Default selection
-    
-        let label = document.createElement("label");
-        label.htmlFor = `radio-${name}`;
-        label.innerText = name;
-        label.classList.add("px-2")
-
-        radio.addEventListener("change", () => updateChart(name, index));
-        let li = document.createElement("li");
-
-        li.appendChild(radio);
-        li.appendChild(label);
-        radioContainer.appendChild(li);
-      });
-      
+      const taskNames = [...new Set(data.map(item => item.name))].sort();      
+      const charts = document.getElementById('charts')
+            
       // Assign a random color to each unique name
       const colorMap = {};
-      uniqueNames.forEach(name => {
+      taskNames.forEach(name => {
         colorMap[name] = `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
       });
 
@@ -135,7 +115,7 @@
       {{ end }}
       
       // Group data points by name
-      const datasets = uniqueNames.map(name => {
+      const datasets = taskNames.map(name => {
         return {
           label: name,
           data: dataCallback(data, name),
@@ -146,52 +126,66 @@
         };
       });
 
-      // Create the Chart.js line chart
-      let currentChart = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-          datasets: [datasets[0]],
-        },
-        options: {
-          animation: false,
-          responsive: true,
-          onClick: (event, elements) => {
-            if (elements.length > 0) {              
-                const taskid = elements[0].element.$context.raw.task
-                window.open('{{ relURL "task"  }}/' + taskid + "/", "_blank");
-            }
-          },
-          scales: {
-            x: {
-              type: 'time', // Use time scale for x-axis
-              time: {
-                unit: 'day', // Adjust unit based on data (e.g., 'day', 'hour', 'minute')
-                tooltipFormat: 'PPpp', // Format for tooltip (uses date-fns)
+      taskNames.forEach((name, index) => {
+        h2 = document.createElement("h2");
+        h2.innerHTML = name
+        h2.id = name;
+        a = document.createElement("a");
+        a.href = "#" + name
+        a.appendChild(h2);
+        charts.appendChild(a);
+        if (datasets[index].data.length <= 0) {
+          span = document.createElement("span");
+          span.innerHTML = "No data for task: " + name
+          charts.appendChild(span);
+        } else {
+          chartCanvas = document.createElement("canvas");
+          chartCanvas.id = name;
+          chartCanvas.width = 1200;
+          chartCanvas.height = 800;
+          const ctx = chartCanvas.getContext('2d');
+          new Chart(ctx, {
+            type: 'scatter',
+            data: {
+              datasets: [datasets[index]],
+            },
+            options: {
+              animation: false,
+              responsive: false,
+              onClick: (event, elements) => {
+                if (elements.length > 0) {              
+                    const taskid = elements[0].element.$context.raw.task
+                    window.open('{{ relURL "task"  }}/' + taskid + "/", "_blank");
+                }
               },
-              title: {
-                display: true,
-                text: 'task created timestamp'
+              scales: {
+                x: {
+                  type: 'time', // Use time scale for x-axis
+                  time: {
+                    unit: 'day', // Adjust unit based on data (e.g., 'day', 'hour', 'minute')
+                    tooltipFormat: 'PPpp', // Format for tooltip (uses date-fns)
+                  },
+                  title: {
+                    display: true,
+                    text: 'task created timestamp'
+                  }
+                },
+                y: y, 
+              },
+              plugins: {
+                legend: {
+                  position: 'top'
+                },
+                title: {
+                  display: true,
+                  text: titleText
+                },
               }
-            },
-            y: y, 
-          },
-          plugins: {
-            legend: {
-              position: 'top'
-            },
-            title: {
-              display: true,
-              text: titleText
-            },
-          }
+            }
+          });
+          charts.appendChild(chartCanvas);
         }
       });
-
-      function updateChart(selectedName, index) {
-        currentChart.data.datasets = [datasets[index]];
-        currentChart.update();
-      }
-
     })
     .catch(error => {
       console.error('Error loading the JSON data:', error);

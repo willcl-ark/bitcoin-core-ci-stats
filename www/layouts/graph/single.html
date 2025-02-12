@@ -94,6 +94,22 @@
             .filter(item => item.name === name)
             .map(item => ({ x: item.created, y: (item.scheduleDuration / 1000), task: item.id })) 
       {{ end }}
+      // for UNIT-TEST-DURATION chart
+      {{ with (eq .Params.graph "unit-tests") }}
+        titleText = "unit tests duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.unitTestDuration > 0)
+            .map(item => ({ x: item.created, y: item.unitTestDuration, task: item.id })) 
+      {{ end }}
+      // for FUNCTIONAL-TEST-DURATION chart
+      {{ with (eq .Params.graph "functional-tests") }}
+        titleText = "functional tests duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.functionalTestDuration > 0)
+            .map(item => ({ x: item.created, y: item.functionalTestDuration, task: item.id })) 
+      {{ end }}
       // for CCACHE chart
       {{ with (eq .Params.graph "ccache") }}
         titleText = "ccache hitrate"

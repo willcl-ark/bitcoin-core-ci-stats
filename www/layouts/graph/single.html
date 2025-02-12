@@ -110,6 +110,14 @@
             .filter(item => item.functionalTestDuration > 0)
             .map(item => ({ x: item.created, y: item.functionalTestDuration, task: item.id })) 
       {{ end }}
+      // for BUILD-DURATION chart
+      {{ with (eq .Params.graph "build") }}
+        titleText = "build duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.buildDuration > 0)
+            .map(item => ({ x: item.created, y: item.buildDuration, task: item.id })) 
+      {{ end }}
       // for CCACHE chart
       {{ with (eq .Params.graph "ccache") }}
         titleText = "ccache hitrate"

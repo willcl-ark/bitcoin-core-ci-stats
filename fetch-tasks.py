@@ -215,6 +215,7 @@ class GraphStats:
         self.created = task_dict["creationTimestamp"]
         self.unitTestDuration = task_dict["runtime_stats"]["unit_test_duration"]
         self.functionalTestDuration = task_dict["runtime_stats"]["functional_test_duration"]
+        self.buildDuration = task_dict["runtime_stats"]["build_duration"]
         
     def to_dict(self):
         return {
@@ -224,6 +225,7 @@ class GraphStats:
             "scheduleDuration": self.scheduleDuration,
             "unitTestDuration": self.unitTestDuration,
             "functionalTestDuration": self.functionalTestDuration,
+            "buildDuration": self.buildDuration,
             "ccacheHitrate": -1 if not self.ccacheHitrate else float(self.ccacheHitrate.replace("%", "")),
             "created": self.created,
         }

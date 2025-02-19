@@ -3,7 +3,7 @@
 name: bitcoin-bitcoin-tasks
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '13 3,15 * * *'
   workflow_dispatch:
 concurrency:
   group: "fetch"
@@ -28,7 +28,7 @@ jobs:
     - name: Install python dependecies
       run: pip install requests
     - name: Fetch tasks
-      run: python3 fetch.py --builds 400 --owner bitcoin --repository bitcoin
+      run: python3 fetch.py --builds 200 --owner bitcoin --repository bitcoin
     - name: Commit changes
       run: |
         git add tasks.json graph.json

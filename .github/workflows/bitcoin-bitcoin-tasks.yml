@@ -27,11 +27,15 @@ jobs:
       run: python3 --version
     - name: Install python dependecies
       run: pip install requests
+    - name: uncompress tasks.json.gz
+      run: gunzip tasks.json.gz
     - name: Fetch tasks
       run: python3 fetch.py --builds 200 --owner bitcoin --repository bitcoin
+    - name: compress tasks.json
+      run: gzip tasks.json
     - name: Commit changes
       run: |
-        git add tasks.json graph.json
+        git add tasks.json.gz graph.json
         git commit -m "Auto updated {graph,tasks}.json: $(date)" -a || true
     - name: Push changes
       uses: ad-m/github-push-action@master

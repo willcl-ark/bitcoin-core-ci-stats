@@ -47,7 +47,8 @@ jobs:
       - name: download tasks.json
         run: |
           mkdir -p www/assets
-          wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/tasks.json
+          wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/tasks.json.gz
+          gunzip tasks.json.gz
           mv tasks.json www/assets/tasks.json
       - name: download graph.json
         run: |

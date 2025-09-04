@@ -1,0 +1,55 @@
+# This workflow fetches GitHub Actions data from bitcoin/bitcoin and updates the stats
+name: bitcoin-bitcoin-github-actions
+on:
+  schedule:
+    - cron: '15 3,15 * * *'  # Run twice daily
+  workflow_dispatch:  # Allow manual triggering
+concurrency:
+  group: "fetch-github-actions"
+  cancel-in-progress: false
+jobs:
+  fetch-github-actions:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure git and checkout data branch
+      run: |
+        git config --local user.email "willcl-ark+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git checkout bitcoin-bitcoin-tasks
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+    - name: Build GitHub Actions fetcher
+      run: cargo build --release
+    - name: Uncompress existing data if present
+      run: |
+        if [ -f tasks.json.gz ]; then
+          gunzip tasks.json.gz
+        fi
+    - name: Fetch GitHub Actions data (with checkpoint)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # If checkpoint doesn't exist, start from run ID where Ci changes were merged
+        if [ ! -f .checkpoint.json ]; then
+          echo "No checkpoint found, starting from run ID 17430440869"
+          ./target/release/fetch-tasks-github --runs 200 --owner bitcoin --repository bitcoin --since-run-id 17430440869 --checkpoint
+        else
+          echo "Checkpoint found, using incremental fetch"
+          ./target/release/fetch-tasks-github --runs 200 --owner bitcoin --repository bitcoin --checkpoint
+        fi
+    - name: Compress updated data
+      run: gzip tasks.json
+    - name: Commit and push changes
+      run: |
+        git add tasks.json.gz graph.json .checkpoint.json
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Auto updated GitHub Actions stats: $(date)"
+          git push origin bitcoin-bitcoin-tasks
+        fi

@@ -47,12 +47,12 @@ jobs:
       - name: download tasks.json
         run: |
           mkdir -p www/assets
-          wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/tasks.json.gz
+          wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/tasks.json.gz
           gunzip tasks.json.gz
           mv tasks.json www/assets/tasks.json
       - name: download graph.json
         run: |
-          wget https://raw.githubusercontent.com/0xB10C/bitcoin-core-ci-stats/refs/heads/bitcoin-bitcoin-tasks/graph.json
+          wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/graph.json
           mv graph.json www/static/graph.json
       - name: Build with Hugo
         env:

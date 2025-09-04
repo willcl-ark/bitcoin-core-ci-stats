@@ -12,9 +12,9 @@
 
   {{/* Add page. */}}
   {{ $content := dict "mediaType" "text/markdown" "value" .name }}
-  {{ $title := print (print "Task " .id) }}
+  {{ $title := printf "Task %.0f" .id }}
   {{ $dates := dict
-      "date" (time.AsTime (div .creationTimestamp 1000 | int ))
+      "date" (time.AsTime (.creationTimestamp | int))
   }}
   {{ $tags := slice (index .executionInfoLabels 0) .name .build.branch .status }}
   {{ $params := dict

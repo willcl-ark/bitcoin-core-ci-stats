@@ -1,9 +1,9 @@
 <tr {{ if ne .Params.status "COMPLETED" }} class="tasks-that-are-not-complete"{{ end }}>
     <td>
-        {{ div .Params.creationTimestamp 1000 | int | dateFormat "2006-01-02 15:04:05" }}
+        {{ .Params.creationTimestamp | int | dateFormat "2006-01-02 15:04:05" }}
     </td>
     <td>
-        <a href="{{ relURL "task"}}/{{.Params.id | urlize }}">{{.Params.id}}</a>
+        <a href="{{ relURL "task"}}/{{.Params.id | urlize }}">{{ printf "%.0f" .Params.id }}</a>
     </td>
     <td>
         <a href="{{ relURL "tags"}}/{{.Params.name | urlize}}">{{.Params.name}}</a>

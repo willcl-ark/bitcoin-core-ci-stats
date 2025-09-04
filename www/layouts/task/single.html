@@ -1,7 +1,7 @@
 {{ define "main" }}
     <section id="single" class="container-lg">
         <h1>
-            <a href="https://cirrus-ci.com/task/{{ .Params.id }}" target="_blank">
+            <a href="https://github.com/bitcoin/bitcoin/actions/runs/{{ .Params.id }}" target="_blank">
                 {{ .Title }}
             </a>
         </h1>
@@ -80,7 +80,7 @@
                 {{ range . }}
                     <tr>
                         <td>
-                            <a href="https://cirrus-ci.com/task/{{ $id }}?logs=ci#L{{.line}}" target="_blank">
+                            <a href="https://github.com/bitcoin/bitcoin/actions/runs/{{ $id }}" target="_blank">
                                 {{ .line }}
                             </a>
                         </td>

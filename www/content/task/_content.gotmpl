@@ -2,11 +2,7 @@
 {{ $data := dict }}
 {{ $path := "tasks.json" }}
 {{ with resources.Get $path }}
-  {{ with .Err }}
-    {{ errorf "Unable to get resource %s: %s" $path . }}
-  {{ else }}
-    {{ $data = . | transform.Unmarshal }}
-  {{ end }}
+  {{ $data = . | transform.Unmarshal }}
 {{ else }}
   {{ errorf "Unable to get resource %s" $path }}
 {{ end }}

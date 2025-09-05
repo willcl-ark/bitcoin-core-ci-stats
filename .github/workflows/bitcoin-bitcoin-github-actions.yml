@@ -3,7 +3,7 @@ name: bitcoin-bitcoin-github-actions
 
 on:
   schedule:
-    - cron: '15 3,15 * * *'  # Run twice daily
+    - cron: '15 0,3,6,9,12,15,18,21 * * *'  # Run every 3 hours
   workflow_dispatch:  # Allow manual triggering
 
 concurrency:
@@ -12,9 +12,11 @@ concurrency:
 
 jobs:
   fetch-github-actions:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    env:
+      START_RUN_ID: 17430440869
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,8 +39,8 @@ jobs:
         name: bitcoin-core-ci-stats
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
-    - name: Build with Nix
-      run: nix build | cachix push bitcoin-core-ci-stats
+    - name: Build binary
+      run: nix build
 
     - name: Uncompress existing data if present
       run: |
@@ -52,8 +54,8 @@ jobs:
       run: |
         # If checkpoint doesn't exist, start from run ID where Ci changes were merged
         if [ ! -f .checkpoint.json ]; then
-          echo "No checkpoint found, starting from run ID 17430440869"
-          ./result/bin/fetch-tasks-github --runs 200 --owner bitcoin --repository bitcoin --since-run-id 17430440869 --checkpoint
+          echo "No checkpoint found, starting from run ID ${{ env.START_RUN_ID }}"
+          ./result/bin/fetch-tasks-github --runs 200 --owner bitcoin --repository bitcoin --since-run-id ${{ env.START_RUN_ID }} --checkpoint
         else
           echo "Checkpoint found, using incremental fetch"
           ./result/bin/fetch-tasks-github --runs 200 --owner bitcoin --repository bitcoin --checkpoint

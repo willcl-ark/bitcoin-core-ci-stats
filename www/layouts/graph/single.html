@@ -27,9 +27,9 @@
       return response.json();
     })
     .then(data => {
-      const taskNames = [...new Set(data.map(item => item.name))].sort();      
+      const taskNames = [...new Set(data.map(item => item.name))].sort();
       const charts = document.getElementById('charts')
-            
+
       // Assign a random color to each unique name
       const colorMap = {};
       taskNames.forEach(name => {
@@ -58,21 +58,21 @@
         titleText = "task execution duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created, y: item.duration, task: item.id }))
+            .map(item => ({ x: item.created * 1000, y: item.duration, task: item.id }))
       {{ end }}
       // for EXECUTION+SCHEDULE-DURATION chart
       {{ with (eq .Params.graph "schedule+execution") }}
         titleText = "task schedule + execution duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created, y: item.duration + (item.scheduleDuration / 1000), task: item.id })) 
+            .map(item => ({ x: item.created * 1000, y: item.duration + (item.scheduleDuration / 1000), task: item.id }))
       {{ end }}
       // for SCHEDULE-DURATION chart
       {{ with (eq .Params.graph "schedule") }}
         titleText = "task scheduling duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created, y: (item.scheduleDuration / 1000), task: item.id })) 
+            .map(item => ({ x: item.created * 1000, y: (item.scheduleDuration / 1000), task: item.id }))
       {{ end }}
       // for UNIT-TEST-DURATION chart
       {{ with (eq .Params.graph "unit-tests") }}
@@ -80,7 +80,7 @@
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
             .filter(item => item.unitTestDuration > 0)
-            .map(item => ({ x: item.created, y: item.unitTestDuration, task: item.id })) 
+            .map(item => ({ x: item.created * 1000, y: item.unitTestDuration, task: item.id }))
       {{ end }}
       // for FUNCTIONAL-TEST-DURATION chart
       {{ with (eq .Params.graph "functional-tests") }}
@@ -88,7 +88,7 @@
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
             .filter(item => item.functionalTestDuration > 0)
-            .map(item => ({ x: item.created, y: item.functionalTestDuration, task: item.id })) 
+            .map(item => ({ x: item.created * 1000, y: item.functionalTestDuration, task: item.id }))
       {{ end }}
       // for BUILD-DURATION chart
       {{ with (eq .Params.graph "build") }}
@@ -96,7 +96,7 @@
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
             .filter(item => item.buildDuration > 0)
-            .map(item => ({ x: item.created, y: item.buildDuration, task: item.id })) 
+            .map(item => ({ x: item.created * 1000, y: item.buildDuration, task: item.id }))
       {{ end }}
       // for CCACHE chart
       {{ with (eq .Params.graph "ccache") }}
@@ -104,7 +104,7 @@
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
             .filter(item => item.ccacheHitrate > 0)
-            .map(item => ({ x: item.created, y: item.ccacheHitrate, task: item.id }))
+            .map(item => ({ x: item.created * 1000, y: item.ccacheHitrate, task: item.id }))
         y = {
           title: {
             display: true,
@@ -113,7 +113,7 @@
           beginAtZero: true
         }
       {{ end }}
-      
+
       // Group data points by name
       const datasets = taskNames.map(name => {
         return {
@@ -153,7 +153,7 @@
               animation: false,
               responsive: false,
               onClick: (event, elements) => {
-                if (elements.length > 0) {              
+                if (elements.length > 0) {
                     const taskid = elements[0].element.$context.raw.task
                     window.open('{{ relURL "task"  }}/' + taskid + "/", "_blank");
                 }
@@ -170,7 +170,7 @@
                     text: 'task created timestamp'
                   }
                 },
-                y: y, 
+                y: y,
               },
               plugins: {
                 legend: {

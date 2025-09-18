@@ -41,13 +41,14 @@
       let y = {
         title: {
           display: true,
-          text: 'Duration (MM:SS)'
+          text: 'Duration (HH:MM:SS)'
         },
         ticks: {
           callback: function (value) {
-            const minutes = Math.floor(value / 60);
+            const hours = Math.floor(value / 3600);
+            const minutes = Math.floor((value % 3600) / 60);
             const seconds = value % 60;
-            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
           }
         },
         beginAtZero: true
@@ -65,14 +66,14 @@
         titleText = "task schedule + execution duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created * 1000, y: item.duration + (item.scheduleDuration / 1000), task: item.id }))
+            .map(item => ({ x: item.created * 1000, y: item.duration + item.scheduleDuration, task: item.id }))
       {{ end }}
       // for SCHEDULE-DURATION chart
       {{ with (eq .Params.graph "schedule") }}
         titleText = "task scheduling duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
-            .map(item => ({ x: item.created * 1000, y: (item.scheduleDuration / 1000), task: item.id }))
+            .map(item => ({ x: item.created * 1000, y: item.scheduleDuration, task: item.id }))
       {{ end }}
       // for UNIT-TEST-DURATION chart
       {{ with (eq .Params.graph "unit-tests") }}

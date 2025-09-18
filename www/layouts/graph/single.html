@@ -74,6 +74,7 @@
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
             .map(item => ({ x: item.created * 1000, y: item.scheduleDuration, task: item.id }))
+        y.type = 'logarithmic'
       {{ end }}
       // for UNIT-TEST-DURATION chart
       {{ with (eq .Params.graph "unit-tests") }}

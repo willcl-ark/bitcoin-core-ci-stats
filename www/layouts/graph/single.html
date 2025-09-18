@@ -75,18 +75,8 @@
             .filter(item => item.name === name)
             .map(item => ({ x: item.created * 1000, y: item.scheduleDuration, task: item.id }))
         y.type = 'logarithmic'
-        y.min = 60  // 1 minute
-        y.max = 60000  // 1000 minutes
-        y.ticks = {
-          ...y.ticks,
-          callback: function (value) {
-            const hours = Math.floor(value / 3600);
-            const minutes = Math.floor((value % 3600) / 60);
-            const seconds = value % 60;
-            return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-          },
-          values: [60, 600, 6000, 60000]  // 1, 10, 100, 1000 minutes
-        }
+        y.min = 1  // 1 second to avoid log(0)
+        y.max = 36000  // 10 hours
       {{ end }}
       // for UNIT-TEST-DURATION chart
       {{ with (eq .Params.graph "unit-tests") }}

@@ -48,19 +48,19 @@ impl Checkpoint {
         if !std::path::Path::new(CHECKPOINT_FILENAME).exists() {
             return Ok(None);
         }
-        
+
         let content = fs::read_to_string(CHECKPOINT_FILENAME)?;
         let checkpoint: Self = serde_json::from_str(&content)?;
         Ok(Some(checkpoint))
     }
-    
+
     fn save(&self) -> Result<()> {
         let content = serde_json::to_string_pretty(self)?;
         fs::write(CHECKPOINT_FILENAME, content)?;
         info!("Saved checkpoint: last_run_id={}", self.last_run_id);
         Ok(())
     }
-    
+
     fn reset() -> Result<()> {
         if std::path::Path::new(CHECKPOINT_FILENAME).exists() {
             fs::remove_file(CHECKPOINT_FILENAME)?;
@@ -256,9 +256,16 @@ impl GitHubActionsFetcher {
         })
     }
 
-    async fn fetch_workflow_runs(&self, max_runs: usize, since_run_id: Option<u64>) -> Result<Vec<Task>> {
+    async fn fetch_workflow_runs(
+        &self,
+        max_runs: usize,
+        since_run_id: Option<u64>,
+    ) -> Result<Vec<Task>> {
         if let Some(since_id) = since_run_id {
-            info!("Fetching workflow runs since run ID {} from GitHub API...", since_id);
+            info!(
+                "Fetching workflow runs since run ID {} from GitHub API...",
+                since_id
+            );
         } else {
             info!("Fetching workflow runs from GitHub API...");
         }
@@ -422,7 +429,8 @@ impl GitHubActionsFetcher {
 
         // Fetch and parse job log
         let job_id = job_value["id"].as_u64().unwrap_or(0);
-        let (log_status_code, commands, runtime_stats) = self.fetch_and_parse_job_log(job_id).await;
+        let (log_status_code, commands, runtime_stats) =
+            self.fetch_and_parse_job_log(job_id, job_completed_at).await;
 
         Ok(Task {
             id: job_id,
@@ -442,7 +450,11 @@ impl GitHubActionsFetcher {
         })
     }
 
-    async fn fetch_and_parse_job_log(&self, job_id: u64) -> (u16, Vec<Command>, TaskRuntimeStats) {
+    async fn fetch_and_parse_job_log(
+        &self,
+        job_id: u64,
+        job_completed_at: i64,
+    ) -> (u16, Vec<Command>, TaskRuntimeStats) {
         match self.fetch_job_log(job_id).await {
             Ok(log_content) => {
                 info!(
@@ -450,7 +462,7 @@ impl GitHubActionsFetcher {
                     job_id,
                     log_content.lines().count()
                 );
-                let (commands, stats) = self.parse_log(&log_content);
+                let (commands, stats) = self.parse_log(&log_content, job_completed_at);
                 (200, commands, stats)
             }
             Err(e) => {
@@ -484,7 +496,11 @@ impl GitHubActionsFetcher {
         }
     }
 
-    fn parse_log(&self, log_content: &str) -> (Vec<Command>, TaskRuntimeStats) {
+    fn parse_log(
+        &self,
+        log_content: &str,
+        job_completed_at: i64,
+    ) -> (Vec<Command>, TaskRuntimeStats) {
         let mut commands = Vec::new();
         let mut runtime_stats = TaskRuntimeStats::default();
 
@@ -527,10 +543,13 @@ impl GitHubActionsFetcher {
             }
         }
 
-        // Process final command
-        if let Some((cmd, _start_time, line, output)) = current_command {
-            // Use a reasonable default duration for the last command
-            let duration = 1; // 1 second default
+        // Process final command using job completion timestamp
+        if let Some((cmd, start_time, line, output)) = current_command {
+            let duration = if job_completed_at > 0 {
+                job_completed_at - start_time.timestamp()
+            } else {
+                1 // Fallback to 1 second if no completion time available
+            };
 
             if duration >= MIN_COMMAND_DURATION_SEC as i64 {
                 commands.push(Command {
@@ -614,9 +633,9 @@ async fn main() -> Result<()> {
     };
 
     // Determine since_run_id from checkpoint or CLI argument
-    let since_run_id = args.since_run_id.or_else(|| {
-        checkpoint.as_ref().map(|c| c.last_run_id)
-    });
+    let since_run_id = args
+        .since_run_id
+        .or_else(|| checkpoint.as_ref().map(|c| c.last_run_id));
 
     if let Some(since_id) = since_run_id {
         info!("Using incremental fetch from run ID: {}", since_id);

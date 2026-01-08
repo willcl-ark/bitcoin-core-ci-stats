@@ -5,6 +5,7 @@ use http_body_util::BodyExt;
 use octocrab::Octocrab;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::fs;
 use std::sync::OnceLock;
 use tracing::{info, warn};
@@ -575,9 +576,9 @@ impl GitHubActionsFetcher {
     }
 }
 
-fn load_existing_task_ids() -> Result<Vec<u64>> {
+fn load_existing_task_ids() -> Result<HashSet<u64>> {
     if !std::path::Path::new(TASKS_FILENAME).exists() {
-        return Ok(vec![]);
+        return Ok(HashSet::new());
     }
 
     let content = fs::read_to_string(TASKS_FILENAME)?;

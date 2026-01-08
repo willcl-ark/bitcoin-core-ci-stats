@@ -175,7 +175,7 @@ impl TaskRuntimeStats {
             self.build_duration = duration_secs;
         } else if cmd.contains("ccache --show-stats") {
             // Extract ccache hit rate
-            let re = Regex::new(r"\((\d+\.\d+%)\)").unwrap();
+            let re = Regex::new(r"\((\d+(?:\.\d+)?%)\)").unwrap();
             for line in output_lines {
                 if line.contains("Hits:")
                     && let Some(caps) = re.captures(line)

@@ -6,7 +6,23 @@ use octocrab::Octocrab;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::sync::OnceLock;
 use tracing::{info, warn};
+
+/// Returns a compiled regex for extracting ccache hit rate percentages.
+/// Pattern matches both "75.69%" and "100%" formats.
+fn ccache_hitrate_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\((\d+(?:\.\d+)?%)\)").unwrap())
+}
+
+/// Returns a compiled regex for parsing GitHub Actions log command lines.
+fn command_pattern_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) .*?\+ (.+)").unwrap()
+    })
+}
 
 const MIN_COMMAND_DURATION_SEC: u64 = 1;
 const DEFAULT_RUNS_TO_QUERY: usize = 400;
@@ -175,10 +191,9 @@ impl TaskRuntimeStats {
             self.build_duration = duration_secs;
         } else if cmd.contains("ccache --show-stats") {
             // Extract ccache hit rate
-            let re = Regex::new(r"\((\d+(?:\.\d+)?%)\)").unwrap();
             for line in output_lines {
                 if line.contains("Hits:")
-                    && let Some(caps) = re.captures(line)
+                    && let Some(caps) = ccache_hitrate_regex().captures(line)
                 {
                     self.ccache_hitrate = caps[1].to_string();
                     break;
@@ -504,17 +519,11 @@ impl GitHubActionsFetcher {
         let mut commands = Vec::new();
         let mut runtime_stats = TaskRuntimeStats::default();
 
-        // GitHub Actions log format: timestamp + content
-        let command_pattern =
-            Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) .*?\+ (.+)").unwrap();
-        let _timestamp_pattern =
-            Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)").unwrap();
-
         let lines: Vec<&str> = log_content.lines().collect();
         let mut current_command: Option<(String, DateTime<Utc>, usize, Vec<String>)> = None;
 
         for (line_num, line) in lines.iter().enumerate() {
-            if let Some(caps) = command_pattern.captures(line) {
+            if let Some(caps) = command_pattern_regex().captures(line) {
                 let timestamp_str = &caps[1];
                 let command = caps[2].to_string();
 

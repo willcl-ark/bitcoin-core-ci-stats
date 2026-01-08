@@ -147,20 +147,32 @@ struct TaskRuntimeStats {
     ccache_hitrate: String,
     #[serde(rename = "docker_build_cached")]
     docker_build_cached: bool,
-    #[serde(rename = "docker_build_duration")]
-    docker_build_duration: i64,
-    #[serde(rename = "ccache_zerostats_duration")]
-    ccache_zerostats_duration: i64,
-    #[serde(rename = "configure_duration")]
-    configure_duration: i64,
-    #[serde(rename = "build_duration")]
-    build_duration: i64,
-    #[serde(rename = "unit_test_duration")]
-    unit_test_duration: i64,
-    #[serde(rename = "functional_test_duration")]
-    functional_test_duration: i64,
-    #[serde(rename = "depends_build_duration")]
-    depends_build_duration: i64,
+    #[serde(
+        rename = "docker_build_duration",
+        skip_serializing_if = "Option::is_none"
+    )]
+    docker_build_duration: Option<i64>,
+    #[serde(
+        rename = "ccache_zerostats_duration",
+        skip_serializing_if = "Option::is_none"
+    )]
+    ccache_zerostats_duration: Option<i64>,
+    #[serde(rename = "configure_duration", skip_serializing_if = "Option::is_none")]
+    configure_duration: Option<i64>,
+    #[serde(rename = "build_duration", skip_serializing_if = "Option::is_none")]
+    build_duration: Option<i64>,
+    #[serde(rename = "unit_test_duration", skip_serializing_if = "Option::is_none")]
+    unit_test_duration: Option<i64>,
+    #[serde(
+        rename = "functional_test_duration",
+        skip_serializing_if = "Option::is_none"
+    )]
+    functional_test_duration: Option<i64>,
+    #[serde(
+        rename = "depends_build_duration",
+        skip_serializing_if = "Option::is_none"
+    )]
+    depends_build_duration: Option<i64>,
 }
 
 impl Default for TaskRuntimeStats {
@@ -168,13 +180,13 @@ impl Default for TaskRuntimeStats {
         Self {
             ccache_hitrate: String::new(),
             docker_build_cached: false,
-            docker_build_duration: -1,
-            ccache_zerostats_duration: -1,
-            configure_duration: -1,
-            build_duration: -1,
-            unit_test_duration: -1,
-            functional_test_duration: -1,
-            depends_build_duration: -1,
+            docker_build_duration: None,
+            ccache_zerostats_duration: None,
+            configure_duration: None,
+            build_duration: None,
+            unit_test_duration: None,
+            functional_test_duration: None,
+            depends_build_duration: None,
         }
     }
 }
@@ -182,7 +194,7 @@ impl Default for TaskRuntimeStats {
 impl TaskRuntimeStats {
     fn process_command(&mut self, cmd: &str, duration_secs: i64, output_lines: &[String]) {
         if cmd.contains("docker build") {
-            self.docker_build_duration = duration_secs;
+            self.docker_build_duration = Some(duration_secs);
 
             // Check if docker build was cached
             for line in output_lines {
@@ -192,13 +204,13 @@ impl TaskRuntimeStats {
                 }
             }
         } else if cmd == "ccache --zero-stats" {
-            self.ccache_zerostats_duration = duration_secs;
+            self.ccache_zerostats_duration = Some(duration_secs);
         } else if cmd.contains("cmake -S ") {
-            self.configure_duration = duration_secs;
+            self.configure_duration = Some(duration_secs);
         } else if cmd.contains(" make ") && cmd.contains(" -C depends ") {
-            self.depends_build_duration = duration_secs;
+            self.depends_build_duration = Some(duration_secs);
         } else if cmd.contains("cmake --build ") {
-            self.build_duration = duration_secs;
+            self.build_duration = Some(duration_secs);
         } else if cmd.contains("ccache --show-stats") {
             // Extract ccache hit rate
             for line in output_lines {
@@ -210,9 +222,9 @@ impl TaskRuntimeStats {
                 }
             }
         } else if cmd.contains("ctest ") {
-            self.unit_test_duration = duration_secs;
+            self.unit_test_duration = Some(duration_secs);
         } else if cmd.contains("test/functional/test_runner.py ") {
-            self.functional_test_duration = duration_secs;
+            self.functional_test_duration = Some(duration_secs);
         }
     }
 }
@@ -252,9 +264,9 @@ impl From<&Task> for GraphStats {
             name: task.name.clone(),
             duration: task.duration,
             schedule_duration: task.executing_timestamp - task.creation_timestamp,
-            unit_test_duration: task.runtime_stats.unit_test_duration,
-            functional_test_duration: task.runtime_stats.functional_test_duration,
-            build_duration: task.runtime_stats.build_duration,
+            unit_test_duration: task.runtime_stats.unit_test_duration.unwrap_or(-1),
+            functional_test_duration: task.runtime_stats.functional_test_duration.unwrap_or(-1),
+            build_duration: task.runtime_stats.build_duration.unwrap_or(-1),
             ccache_hitrate,
             created: task.creation_timestamp,
         }

@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use clap::Parser;
 use http_body_util::BodyExt;
@@ -8,7 +8,24 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::sync::OnceLock;
+use thiserror::Error;
 use tracing::{info, warn};
+
+/// Application-specific errors with structured variants.
+#[derive(Debug, Error)]
+enum AppError {
+    #[error("GITHUB_TOKEN environment variable is required")]
+    MissingGitHubToken,
+
+    #[error("missing field '{0}' in GitHub API response")]
+    MissingField(&'static str),
+
+    #[error("failed to fetch log: HTTP {0}")]
+    LogFetchFailed(u16),
+
+    #[error("failed to read response body: {0}")]
+    ResponseBodyError(String),
+}
 
 /// Returns a compiled regex for extracting ccache hit rate percentages.
 /// Pattern matches both "75.69%" and "100%" formats.
@@ -273,8 +290,7 @@ struct GitHubActionsFetcher {
 
 impl GitHubActionsFetcher {
     fn new(owner: String, repo: String) -> Result<Self> {
-        let token = std::env::var("GITHUB_TOKEN")
-            .map_err(|_| anyhow!("GITHUB_TOKEN environment variable is required"))?;
+        let token = std::env::var("GITHUB_TOKEN").map_err(|_| AppError::MissingGitHubToken)?;
 
         let octocrab = Octocrab::builder().personal_token(token).build()?;
 
@@ -314,7 +330,7 @@ impl GitHubActionsFetcher {
             let response: serde_json::Value = self.octocrab.get(&url, None::<&()>).await?;
             let runs = response["workflow_runs"]
                 .as_array()
-                .ok_or_else(|| anyhow!("No workflow_runs in response"))?;
+                .ok_or(AppError::MissingField("workflow_runs"))?;
 
             if runs.is_empty() {
                 break;
@@ -335,7 +351,7 @@ impl GitHubActionsFetcher {
 
                 let run_id = run_value["id"]
                     .as_u64()
-                    .ok_or_else(|| anyhow!("Missing run id"))?;
+                    .ok_or(AppError::MissingField("id"))?;
 
                 // Check if we've reached the checkpoint run ID (early termination)
                 if let Some(since_id) = since_run_id {
@@ -354,7 +370,7 @@ impl GitHubActionsFetcher {
                     self.octocrab.get(&jobs_url, None::<&()>).await?;
                 let jobs = jobs_response["jobs"]
                     .as_array()
-                    .ok_or_else(|| anyhow!("No jobs in response"))?;
+                    .ok_or(AppError::MissingField("jobs"))?;
 
                 for job_value in jobs {
                     let job_name = job_value["name"].as_str().unwrap_or("");
@@ -401,7 +417,7 @@ impl GitHubActionsFetcher {
     ) -> Result<Task> {
         let run_created_at_str = run_value["created_at"]
             .as_str()
-            .ok_or_else(|| anyhow!("Missing run created_at"))?;
+            .ok_or(AppError::MissingField("created_at"))?;
         let run_created_at = DateTime::parse_from_rfc3339(run_created_at_str)?.timestamp();
 
         let job_started_at = if let Some(started_str) = job_value["started_at"].as_str() {
@@ -512,12 +528,12 @@ impl GitHubActionsFetcher {
             let bytes = body
                 .collect()
                 .await
-                .map_err(|e| anyhow!("Failed to read response body: {}", e))?
+                .map_err(|e| AppError::ResponseBodyError(e.to_string()))?
                 .to_bytes();
             let text = String::from_utf8_lossy(&bytes);
             Ok(text.to_string())
         } else {
-            Err(anyhow!("Failed to fetch log: HTTP {}", response.status()))
+            Err(AppError::LogFetchFailed(response.status().as_u16()).into())
         }
     }
 

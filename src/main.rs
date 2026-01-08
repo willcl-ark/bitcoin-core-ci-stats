@@ -143,8 +143,9 @@ struct Command {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TaskRuntimeStats {
-    #[serde(rename = "ccache_hitrate")]
-    ccache_hitrate: String,
+    /// Compiler cache hit rate as a percentage (0.0-100.0)
+    #[serde(rename = "ccache_hitrate", skip_serializing_if = "Option::is_none")]
+    ccache_hitrate: Option<f64>,
     #[serde(rename = "docker_build_cached")]
     docker_build_cached: bool,
     #[serde(
@@ -178,7 +179,7 @@ struct TaskRuntimeStats {
 impl Default for TaskRuntimeStats {
     fn default() -> Self {
         Self {
-            ccache_hitrate: String::new(),
+            ccache_hitrate: None,
             docker_build_cached: false,
             docker_build_duration: None,
             ccache_zerostats_duration: None,
@@ -212,12 +213,13 @@ impl TaskRuntimeStats {
         } else if cmd.contains("cmake --build ") {
             self.build_duration = Some(duration_secs);
         } else if cmd.contains("ccache --show-stats") {
-            // Extract ccache hit rate
+            // Extract ccache hit rate and parse to f64 immediately
             for line in output_lines {
                 if line.contains("Hits:")
                     && let Some(caps) = ccache_hitrate_regex().captures(line)
                 {
-                    self.ccache_hitrate = caps[1].to_string();
+                    // Parse "75.69%" or "100%" to f64
+                    self.ccache_hitrate = caps[1].trim_end_matches('%').parse::<f64>().ok();
                     break;
                 }
             }
@@ -249,16 +251,6 @@ struct GraphStats {
 
 impl From<&Task> for GraphStats {
     fn from(task: &Task) -> Self {
-        let ccache_hitrate = if task.runtime_stats.ccache_hitrate.is_empty() {
-            -1.0
-        } else {
-            task.runtime_stats
-                .ccache_hitrate
-                .replace("%", "")
-                .parse::<f64>()
-                .unwrap_or(-1.0)
-        };
-
         Self {
             id: task.id,
             name: task.name.clone(),
@@ -267,7 +259,7 @@ impl From<&Task> for GraphStats {
             unit_test_duration: task.runtime_stats.unit_test_duration.unwrap_or(-1),
             functional_test_duration: task.runtime_stats.functional_test_duration.unwrap_or(-1),
             build_duration: task.runtime_stats.build_duration.unwrap_or(-1),
-            ccache_hitrate,
+            ccache_hitrate: task.runtime_stats.ccache_hitrate.unwrap_or(-1.0),
             created: task.creation_timestamp,
         }
     }

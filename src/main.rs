@@ -31,6 +31,15 @@ const TASKS_FILENAME: &str = "tasks.json";
 const GRAPH_FILENAME: &str = "graph.json";
 const CHECKPOINT_FILENAME: &str = ".checkpoint.json";
 
+/// Status of a CI task or build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+enum TaskStatus {
+    Completed,
+    Failed,
+    Aborted,
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "fetch-tasks-github")]
 #[command(about = "Fetch GitHub Actions workflow run data for Bitcoin Core CI stats")]
@@ -90,7 +99,7 @@ impl Checkpoint {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Build {
     id: u64,
-    status: String,
+    status: TaskStatus,
     branch: String,
     #[serde(rename = "changeIdInRepo")]
     change_id_in_repo: String,
@@ -103,7 +112,7 @@ struct Build {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Task {
     id: u64,
-    status: String,
+    status: TaskStatus,
     name: String,
     #[serde(rename = "creationTimestamp")]
     creation_timestamp: i64,
@@ -409,24 +418,20 @@ impl GitHubActionsFetcher {
             0
         };
 
-        // Map GitHub conclusion to Cirrus status for compatibility
+        // Map GitHub conclusion to task status
         let status = match job_value["conclusion"].as_str() {
-            Some("success") => "COMPLETED",
-            Some("failure") | Some("timed_out") => "FAILED",
-            Some("cancelled") | Some("skipped") => "ABORTED",
-            Some("neutral") => "COMPLETED",
-            _ => "COMPLETED",
-        }
-        .to_string();
+            Some("success") | Some("neutral") => TaskStatus::Completed,
+            Some("failure") | Some("timed_out") => TaskStatus::Failed,
+            Some("cancelled") | Some("skipped") => TaskStatus::Aborted,
+            _ => TaskStatus::Completed,
+        };
 
         let build_status = match run_value["conclusion"].as_str() {
-            Some("success") => "COMPLETED",
-            Some("failure") | Some("timed_out") => "FAILED",
-            Some("cancelled") | Some("skipped") => "ABORTED",
-            Some("neutral") => "COMPLETED",
-            _ => "COMPLETED",
-        }
-        .to_string();
+            Some("success") | Some("neutral") => TaskStatus::Completed,
+            Some("failure") | Some("timed_out") => TaskStatus::Failed,
+            Some("cancelled") | Some("skipped") => TaskStatus::Aborted,
+            _ => TaskStatus::Completed,
+        };
 
         let build = Build {
             id: run_value["id"].as_u64().unwrap_or(0),
@@ -608,7 +613,7 @@ fn save_tasks(tasks: &[Task]) -> Result<()> {
     // Create graph stats for completed tasks
     let graph_stats: Vec<GraphStats> = all_tasks
         .iter()
-        .filter(|task| task.status == "COMPLETED")
+        .filter(|task| task.status == TaskStatus::Completed)
         .map(GraphStats::from)
         .collect();
 

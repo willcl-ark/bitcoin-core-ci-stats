@@ -558,14 +558,13 @@ impl GitHubActionsFetcher {
                     if let Some((prev_cmd, prev_start, prev_line, prev_output)) = current_command {
                         let duration = (timestamp - prev_start).num_seconds();
 
+                        runtime_stats.process_command(&prev_cmd, duration, &prev_output);
                         if duration >= MIN_COMMAND_DURATION_SEC as i64 {
                             commands.push(Command {
                                 cmd: prev_cmd.clone(),
                                 line: prev_line,
                                 duration,
                             });
-
-                            runtime_stats.process_command(&prev_cmd, duration, &prev_output);
                         }
                     }
 
@@ -586,14 +585,13 @@ impl GitHubActionsFetcher {
                 1 // Fallback to 1 second if no completion time available
             };
 
+            runtime_stats.process_command(&cmd, duration, &output);
             if duration >= MIN_COMMAND_DURATION_SEC as i64 {
                 commands.push(Command {
                     cmd: cmd.clone(),
                     line,
                     duration,
                 });
-
-                runtime_stats.process_command(&cmd, duration, &output);
             }
         }
 

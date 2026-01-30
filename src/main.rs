@@ -4,6 +4,7 @@ use clap::Parser;
 use http_body_util::BodyExt;
 use octocrab::Octocrab;
 use regex::Regex;
+use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -42,7 +43,20 @@ fn command_pattern_regex() -> &'static Regex {
     })
 }
 
-const MIN_COMMAND_DURATION_SEC: u64 = 1;
+fn deserialize_optional_f64<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum StringOrFloat {
+        Float(f64),
+        Str(String),
+    }
+    match Option::<StringOrFloat>::deserialize(d)? {
+        Some(StringOrFloat::Float(v)) => Ok(Some(v)),
+        Some(StringOrFloat::Str(s)) => Ok(s.trim_end_matches('%').parse::<f64>().ok()),
+        None => Ok(None),
+    }
+}
+
 const DEFAULT_RUNS_TO_QUERY: usize = 400;
 const TASKS_FILENAME: &str = "tasks.json";
 const GRAPH_FILENAME: &str = "graph.json";
@@ -161,7 +175,12 @@ struct Command {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct TaskRuntimeStats {
     /// Compiler cache hit rate as a percentage (0.0-100.0)
-    #[serde(rename = "ccache_hitrate", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "ccache_hitrate",
+        default,
+        deserialize_with = "deserialize_optional_f64",
+        skip_serializing_if = "Option::is_none"
+    )]
     ccache_hitrate: Option<f64>,
     #[serde(rename = "docker_build_cached")]
     docker_build_cached: bool,
@@ -559,13 +578,11 @@ impl GitHubActionsFetcher {
                         let duration = (timestamp - prev_start).num_seconds();
 
                         runtime_stats.process_command(&prev_cmd, duration, &prev_output);
-                        if duration >= MIN_COMMAND_DURATION_SEC as i64 {
-                            commands.push(Command {
-                                cmd: prev_cmd.clone(),
-                                line: prev_line,
-                                duration,
-                            });
-                        }
+                        commands.push(Command {
+                            cmd: prev_cmd.clone(),
+                            line: prev_line,
+                            duration,
+                        });
                     }
 
                     // Start new command
@@ -586,13 +603,11 @@ impl GitHubActionsFetcher {
             };
 
             runtime_stats.process_command(&cmd, duration, &output);
-            if duration >= MIN_COMMAND_DURATION_SEC as i64 {
-                commands.push(Command {
-                    cmd: cmd.clone(),
-                    line,
-                    duration,
-                });
-            }
+            commands.push(Command {
+                cmd: cmd.clone(),
+                line,
+                duration,
+            });
         }
 
         (commands, runtime_stats)

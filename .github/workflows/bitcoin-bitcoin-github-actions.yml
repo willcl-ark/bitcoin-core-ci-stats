@@ -21,12 +21,6 @@ jobs:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Configure git and checkout data branch
-      run: |
-        git config --local user.email "willcl-ark+github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
-        git checkout bitcoin-bitcoin-tasks
-
     - name: Install Nix
       uses: DeterminateSystems/nix-installer-action@main
       with:
@@ -42,6 +36,12 @@ jobs:
     - name: Build binary
       run: nix build
 
+    - name: Configure git and checkout data branch
+      run: |
+        git config --local user.email "willcl-ark+github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git checkout bitcoin-bitcoin-tasks
+
     - name: Uncompress existing data if present
       run: |
         if [ -f tasks.json.gz ]; then
@@ -55,10 +55,10 @@ jobs:
         # If checkpoint doesn't exist, start from run ID where Ci changes were merged
         if [ ! -f .checkpoint.json ]; then
           echo "No checkpoint found, starting from run ID ${{ env.START_RUN_ID }}"
-          ./result/bin/fetch-tasks-github --runs 4000 --owner bitcoin --repository bitcoin --since-run-id ${{ env.START_RUN_ID }} --checkpoint
+          ./result/bin/fetch-tasks-github --runs 4500 --owner bitcoin --repository bitcoin --since-run-id ${{ env.START_RUN_ID }} --checkpoint
         else
           echo "Checkpoint found, using incremental fetch"
-          ./result/bin/fetch-tasks-github --runs 4000 --owner bitcoin --repository bitcoin --checkpoint
+          ./result/bin/fetch-tasks-github --runs 4500 --owner bitcoin --repository bitcoin --checkpoint
         fi
 
     - name: Compress updated data

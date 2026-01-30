@@ -55,10 +55,10 @@ jobs:
         # If checkpoint doesn't exist, start from run ID where Ci changes were merged
         if [ ! -f .checkpoint.json ]; then
           echo "No checkpoint found, starting from run ID ${{ env.START_RUN_ID }}"
-          ./result/bin/fetch-tasks-github --runs 2000 --owner bitcoin --repository bitcoin --since-run-id ${{ env.START_RUN_ID }} --checkpoint
+          ./result/bin/fetch-tasks-github --runs 4000 --owner bitcoin --repository bitcoin --since-run-id ${{ env.START_RUN_ID }} --checkpoint
         else
           echo "Checkpoint found, using incremental fetch"
-          ./result/bin/fetch-tasks-github --runs 2000 --owner bitcoin --repository bitcoin --checkpoint
+          ./result/bin/fetch-tasks-github --runs 4000 --owner bitcoin --repository bitcoin --checkpoint
         fi
 
     - name: Compress updated data

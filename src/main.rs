@@ -740,7 +740,7 @@ async fn main() -> Result<()> {
             backfill_target: None,
         });
         cp.backfill_target = Some(target);
-        if cp.backfill_cursor.is_none() {
+        if cp.backfill_cursor.is_none() && cp.last_run_id > target {
             cp.backfill_cursor = Some(cp.last_run_id);
         }
         info!(

@@ -92,12 +92,19 @@ struct Args {
 
     #[arg(long, help = "Reset the checkpoint file")]
     reset_checkpoint: bool,
+
+    #[arg(long, help = "Set backfill target run ID")]
+    backfill_to: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Checkpoint {
     last_run_id: u64,
     last_fetched_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backfill_cursor: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    backfill_target: Option<u64>,
 }
 
 impl Checkpoint {
@@ -114,7 +121,10 @@ impl Checkpoint {
     fn save(&self) -> Result<()> {
         let content = serde_json::to_string_pretty(self)?;
         fs::write(CHECKPOINT_FILENAME, content)?;
-        info!("Saved checkpoint: last_run_id={}", self.last_run_id);
+        info!(
+            "Saved checkpoint: last_run_id={}, backfill_cursor={:?}, backfill_target={:?}",
+            self.last_run_id, self.backfill_cursor, self.backfill_target
+        );
         Ok(())
     }
 
@@ -324,8 +334,18 @@ impl GitHubActionsFetcher {
         &self,
         max_runs: usize,
         since_run_id: Option<u64>,
+        existing_run_ids: &HashSet<u64>,
+        backfill_cursor: Option<u64>,
+        backfill_target: Option<u64>,
     ) -> Result<Vec<Task>> {
-        if let Some(since_id) = since_run_id {
+        let is_backfill = backfill_target.is_some();
+
+        if is_backfill {
+            info!(
+                "Backfill mode: cursor={:?}, target={:?}",
+                backfill_cursor, backfill_target
+            );
+        } else if let Some(since_id) = since_run_id {
             info!(
                 "Fetching workflow runs since run ID {} from GitHub API...",
                 since_id
@@ -336,11 +356,10 @@ impl GitHubActionsFetcher {
 
         let mut all_tasks = Vec::new();
         let mut page = 1;
-        let per_page = 100; // GitHub's max per page
-        let mut total_fetched = 0;
+        let per_page = 100;
+        let mut new_job_count = 0;
 
-        while total_fetched < max_runs {
-            // Use low-level HTTP API to fetch workflow runs
+        while new_job_count < max_runs {
             let url = format!(
                 "/repos/{}/{}/actions/runs?per_page={}&page={}",
                 self.owner, self.repo, per_page, page
@@ -356,7 +375,7 @@ impl GitHubActionsFetcher {
             }
 
             for run_value in runs {
-                if total_fetched >= max_runs {
+                if new_job_count >= max_runs {
                     break;
                 }
 
@@ -372,11 +391,33 @@ impl GitHubActionsFetcher {
                     .as_u64()
                     .ok_or(AppError::MissingField("id"))?;
 
-                // Check if we've reached the checkpoint run ID (early termination)
-                if let Some(since_id) = since_run_id {
-                    if run_id <= since_id {
-                        info!("Reached checkpoint run ID {}, stopping fetch", since_id);
-                        return Ok(all_tasks);
+                if is_backfill {
+                    // Skip runs above the backfill cursor (already processed)
+                    if let Some(cursor) = backfill_cursor {
+                        if run_id >= cursor {
+                            continue;
+                        }
+                    }
+
+                    // Stop when we reach the backfill target
+                    if let Some(target) = backfill_target {
+                        if run_id <= target {
+                            info!("Reached backfill target {}, stopping", target);
+                            return Ok(all_tasks);
+                        }
+                    }
+
+                    // Skip runs we already have
+                    if existing_run_ids.contains(&run_id) {
+                        continue;
+                    }
+                } else {
+                    // Normal mode: stop at checkpoint
+                    if let Some(since_id) = since_run_id {
+                        if run_id <= since_id {
+                            info!("Reached checkpoint run ID {}, stopping fetch", since_id);
+                            return Ok(all_tasks);
+                        }
                     }
                 }
 
@@ -414,9 +455,9 @@ impl GitHubActionsFetcher {
 
                     let task = self.convert_json_to_task(run_value, job_value).await?;
                     all_tasks.push(task);
-                    total_fetched += 1;
+                    new_job_count += 1;
 
-                    if total_fetched >= max_runs {
+                    if new_job_count >= max_runs {
                         break;
                     }
                 }
@@ -624,6 +665,16 @@ fn load_existing_task_ids() -> Result<HashSet<u64>> {
     Ok(tasks.into_iter().map(|task| task.id).collect())
 }
 
+fn load_existing_run_ids() -> Result<HashSet<u64>> {
+    if !std::path::Path::new(TASKS_FILENAME).exists() {
+        return Ok(HashSet::new());
+    }
+
+    let content = fs::read_to_string(TASKS_FILENAME)?;
+    let tasks: Vec<Task> = serde_json::from_str(&content)?;
+    Ok(tasks.into_iter().map(|task| task.build.id).collect())
+}
+
 fn save_tasks(tasks: &[Task]) -> Result<()> {
     // Load existing tasks
     let mut all_tasks = if std::path::Path::new(TASKS_FILENAME).exists() {
@@ -674,32 +725,71 @@ async fn main() -> Result<()> {
     }
 
     // Load checkpoint if enabled
-    let checkpoint = if args.checkpoint {
+    let mut checkpoint = if args.checkpoint {
         Checkpoint::load()?
     } else {
         None
     };
 
-    // Determine since_run_id from checkpoint or CLI argument
-    let since_run_id = args
-        .since_run_id
-        .or_else(|| checkpoint.as_ref().map(|c| c.last_run_id));
+    // Initialize backfill if --backfill-to is provided
+    if let Some(target) = args.backfill_to {
+        let cp = checkpoint.get_or_insert(Checkpoint {
+            last_run_id: 0,
+            last_fetched_at: chrono::Utc::now(),
+            backfill_cursor: None,
+            backfill_target: None,
+        });
+        cp.backfill_target = Some(target);
+        if cp.backfill_cursor.is_none() {
+            cp.backfill_cursor = Some(cp.last_run_id);
+        }
+        info!(
+            "Backfill initialized: cursor={:?}, target={}",
+            cp.backfill_cursor, target
+        );
+    }
+
+    let is_backfill = checkpoint
+        .as_ref()
+        .is_some_and(|c| c.backfill_target.is_some());
+
+    // Determine since_run_id from checkpoint or CLI argument (normal mode only)
+    let since_run_id = if is_backfill {
+        None
+    } else {
+        args.since_run_id
+            .or_else(|| checkpoint.as_ref().map(|c| c.last_run_id))
+    };
 
     if let Some(since_id) = since_run_id {
         info!("Using incremental fetch from run ID: {}", since_id);
     }
 
-    // Load existing task IDs to avoid duplicates
+    // Load existing IDs to avoid duplicates
     let existing_task_ids = load_existing_task_ids()?;
-    info!("Found {} existing tasks", existing_task_ids.len());
+    let existing_run_ids = load_existing_run_ids()?;
+    info!(
+        "Found {} existing tasks, {} existing runs",
+        existing_task_ids.len(),
+        existing_run_ids.len()
+    );
 
-    // Create GitHub client
     let fetcher = GitHubActionsFetcher::new(args.owner, args.repository)?;
 
-    // Fetch workflow runs
-    let tasks = fetcher.fetch_workflow_runs(args.runs, since_run_id).await?;
+    let backfill_cursor = checkpoint.as_ref().and_then(|c| c.backfill_cursor);
+    let backfill_target = checkpoint.as_ref().and_then(|c| c.backfill_target);
 
-    // Filter out existing tasks
+    let tasks = fetcher
+        .fetch_workflow_runs(
+            args.runs,
+            since_run_id,
+            &existing_run_ids,
+            backfill_cursor,
+            backfill_target,
+        )
+        .await?;
+
+    // Filter out existing tasks (by job ID)
     let new_tasks: Vec<Task> = tasks
         .into_iter()
         .filter(|task| !existing_task_ids.contains(&task.id))
@@ -709,20 +799,49 @@ async fn main() -> Result<()> {
 
     if new_tasks.is_empty() {
         info!("No new tasks to process");
+        // Still update backfill cursor if in backfill mode with no new tasks
+        // (all runs in this page range were already fetched)
+        if args.checkpoint && is_backfill {
+            if let Some(ref mut cp) = checkpoint {
+                // Backfill made no progress — likely complete or stuck
+                info!("Backfill produced no new tasks; clearing backfill fields");
+                cp.backfill_cursor = None;
+                cp.backfill_target = None;
+                cp.last_fetched_at = chrono::Utc::now();
+                cp.save()?;
+            }
+        }
         return Ok(());
     }
 
-    // Save tasks
     save_tasks(&new_tasks)?;
-
     info!("Successfully saved {} new tasks", new_tasks.len());
 
-    // Update checkpoint with the highest run ID from new tasks if checkpointing is enabled
-    if args.checkpoint && !new_tasks.is_empty() {
-        if let Some(max_run_id) = new_tasks.iter().map(|t| t.build.id).max() {
+    // Update checkpoint
+    if args.checkpoint {
+        if is_backfill {
+            if let Some(ref mut cp) = checkpoint {
+                let min_run_id = new_tasks.iter().map(|t| t.build.id).min().unwrap();
+                cp.backfill_cursor = Some(min_run_id);
+                cp.last_fetched_at = chrono::Utc::now();
+
+                if min_run_id <= cp.backfill_target.unwrap() {
+                    info!("Backfill complete! Clearing backfill fields.");
+                    cp.backfill_cursor = None;
+                    cp.backfill_target = None;
+                }
+                cp.save()?;
+            }
+        } else if let Some(max_run_id) = new_tasks.iter().map(|t| t.build.id).max() {
+            let last_run_id = checkpoint
+                .as_ref()
+                .map(|c| c.last_run_id.max(max_run_id))
+                .unwrap_or(max_run_id);
             let new_checkpoint = Checkpoint {
-                last_run_id: max_run_id,
+                last_run_id,
                 last_fetched_at: chrono::Utc::now(),
+                backfill_cursor: None,
+                backfill_target: None,
             };
             new_checkpoint.save()?;
         }

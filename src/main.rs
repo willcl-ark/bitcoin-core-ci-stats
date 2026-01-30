@@ -619,11 +619,13 @@ impl GitHubActionsFetcher {
                         let duration = (timestamp - prev_start).num_seconds();
 
                         runtime_stats.process_command(&prev_cmd, duration, &prev_output);
-                        commands.push(Command {
-                            cmd: prev_cmd.clone(),
-                            line: prev_line,
-                            duration,
-                        });
+                        if duration >= 1 {
+                            commands.push(Command {
+                                cmd: prev_cmd.clone(),
+                                line: prev_line,
+                                duration,
+                            });
+                        }
                     }
 
                     // Start new command
@@ -644,11 +646,13 @@ impl GitHubActionsFetcher {
             };
 
             runtime_stats.process_command(&cmd, duration, &output);
-            commands.push(Command {
-                cmd: cmd.clone(),
-                line,
-                duration,
-            });
+            if duration >= 1 {
+                commands.push(Command {
+                    cmd: cmd.clone(),
+                    line,
+                    duration,
+                });
+            }
         }
 
         (commands, runtime_stats)

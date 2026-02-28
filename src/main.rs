@@ -8,6 +8,7 @@ use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
+use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::{info, warn};
@@ -21,11 +22,6 @@ enum AppError {
     #[error("missing field '{0}' in GitHub API response")]
     MissingField(&'static str),
 
-    #[error("failed to fetch log: HTTP {0}")]
-    LogFetchFailed(u16),
-
-    #[error("failed to read response body: {0}")]
-    ResponseBodyError(String),
 }
 
 /// Returns a compiled regex for extracting ccache hit rate percentages.
@@ -58,6 +54,7 @@ fn deserialize_optional_f64<'de, D: Deserializer<'de>>(d: D) -> Result<Option<f6
 }
 
 const DEFAULT_RUNS_TO_QUERY: usize = 400;
+const MAX_LOG_BYTES: usize = 512 * 1024 * 1024;
 const TASKS_FILENAME: &str = "tasks.json";
 const GRAPH_FILENAME: &str = "graph.json";
 const CHECKPOINT_FILENAME: &str = ".checkpoint.json";
@@ -239,17 +236,16 @@ impl Default for TaskRuntimeStats {
 }
 
 impl TaskRuntimeStats {
-    fn process_command(&mut self, cmd: &str, duration_secs: i64, output_lines: &[String]) {
+    fn process_command(
+        &mut self,
+        cmd: &str,
+        duration_secs: i64,
+        docker_cached: bool,
+        ccache_hitrate: Option<f64>,
+    ) {
         if cmd.contains("docker build") {
             self.docker_build_duration = Some(duration_secs);
-
-            // Check if docker build was cached
-            for line in output_lines {
-                if line.contains(" CACHED") || duration_secs < 10 {
-                    self.docker_build_cached = true;
-                    break;
-                }
-            }
+            self.docker_build_cached = docker_cached || duration_secs < 10;
         } else if cmd == "ccache --zero-stats" {
             self.ccache_zerostats_duration = Some(duration_secs);
         } else if cmd.contains("cmake -S ") {
@@ -259,22 +255,21 @@ impl TaskRuntimeStats {
         } else if cmd.contains("cmake --build ") {
             self.build_duration = Some(duration_secs);
         } else if cmd.contains("ccache --show-stats") {
-            // Extract ccache hit rate and parse to f64 immediately
-            for line in output_lines {
-                if line.contains("Hits:")
-                    && let Some(caps) = ccache_hitrate_regex().captures(line)
-                {
-                    // Parse "75.69%" or "100%" to f64
-                    self.ccache_hitrate = caps[1].trim_end_matches('%').parse::<f64>().ok();
-                    break;
-                }
-            }
+            self.ccache_hitrate = ccache_hitrate;
         } else if cmd.contains("ctest ") {
             self.unit_test_duration = Some(duration_secs);
         } else if cmd.contains("test/functional/test_runner.py ") {
             self.functional_test_duration = Some(duration_secs);
         }
     }
+}
+
+struct PendingCommand {
+    cmd: String,
+    start: DateTime<Utc>,
+    line: usize,
+    docker_cached: bool,
+    ccache_hitrate: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -556,106 +551,116 @@ impl GitHubActionsFetcher {
         job_id: u64,
         job_completed_at: i64,
     ) -> (u16, Vec<Command>, TaskRuntimeStats) {
-        match self.fetch_job_log(job_id).await {
-            Ok(log_content) => {
-                info!(
-                    "Fetched log for job {}: {} lines",
-                    job_id,
-                    log_content.lines().count()
-                );
-                let (commands, stats) = self.parse_log(&log_content, job_completed_at);
+        match self.download_and_parse_log(job_id, job_completed_at).await {
+            Ok((line_count, commands, stats)) => {
+                info!("Fetched log for job {}: {} lines", job_id, line_count);
                 (200, commands, stats)
             }
             Err(e) => {
-                warn!("Failed to fetch log for job {}: {}", job_id, e);
+                warn!("Failed to process log for job {}: {}", job_id, e);
                 (500, vec![], TaskRuntimeStats::default())
             }
         }
     }
 
-    async fn fetch_job_log(&self, job_id: u64) -> Result<String> {
-        // GitHub job logs are returned as plain text, not JSON
-        // Use the raw HTTP method to avoid JSON parsing
+    async fn download_and_parse_log(
+        &self,
+        job_id: u64,
+        job_completed_at: i64,
+    ) -> Result<(usize, Vec<Command>, TaskRuntimeStats)> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/actions/jobs/{}/logs",
             self.owner, self.repo, job_id
         );
 
         let response = self.octocrab._get(url).await?;
-
-        if response.status().is_success() {
-            let body = response.into_body();
-            let bytes = body
-                .collect()
-                .await
-                .map_err(|e| AppError::ResponseBodyError(e.to_string()))?
-                .to_bytes();
-            let text = String::from_utf8_lossy(&bytes);
-            Ok(text.to_string())
-        } else {
-            Err(AppError::LogFetchFailed(response.status().as_u16()).into())
+        if !response.status().is_success() {
+            anyhow::bail!("HTTP {}", response.status().as_u16());
         }
-    }
 
-    fn parse_log(
-        &self,
-        log_content: &str,
-        job_completed_at: i64,
-    ) -> (Vec<Command>, TaskRuntimeStats) {
+        let tmp_path = std::env::temp_dir().join("fetch-tasks-github.log");
+        let mut file = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&tmp_path)?;
+
+        let mut body = Box::pin(http_body_util::Limited::new(
+            response.into_body(),
+            MAX_LOG_BYTES,
+        ));
+        while let Some(frame) = body.frame().await {
+            match frame {
+                Ok(f) => {
+                    if let Some(data) = f.data_ref() {
+                        file.write_all(data)?;
+                    }
+                }
+                Err(e) => anyhow::bail!("{e}"),
+            }
+        }
+
+        file.seek(SeekFrom::Start(0))?;
+        let reader = BufReader::new(file);
         let mut commands = Vec::new();
         let mut runtime_stats = TaskRuntimeStats::default();
+        let mut pending: Option<PendingCommand> = None;
+        let mut line_count: usize = 0;
 
-        let lines: Vec<&str> = log_content.lines().collect();
-        let mut current_command: Option<(String, DateTime<Utc>, usize, Vec<String>)> = None;
+        for (line_num, line_result) in reader.lines().enumerate() {
+            let Ok(line) = line_result else { continue };
+            line_count = line_num + 1;
 
-        for (line_num, line) in lines.iter().enumerate() {
-            if let Some(caps) = command_pattern_regex().captures(line) {
-                let timestamp_str = &caps[1];
-                let command = caps[2].to_string();
-
-                if let Ok(timestamp) = timestamp_str.parse::<DateTime<Utc>>() {
-                    // Process previous command if exists
-                    if let Some((prev_cmd, prev_start, prev_line, prev_output)) = current_command {
-                        let duration = (timestamp - prev_start).num_seconds();
-
-                        runtime_stats.process_command(&prev_cmd, duration, &prev_output);
-                        if duration >= 1 {
-                            commands.push(Command {
-                                cmd: prev_cmd.clone(),
-                                line: prev_line,
-                                duration,
-                            });
-                        }
+            if let Some(caps) = command_pattern_regex().captures(&line) {
+                if let Ok(timestamp) = caps[1].parse::<DateTime<Utc>>() {
+                    if let Some(prev) = pending.take() {
+                        finalize_command(prev, timestamp, &mut commands, &mut runtime_stats);
                     }
-
-                    // Start new command
-                    current_command = Some((command, timestamp, line_num, Vec::new()));
+                    pending = Some(PendingCommand {
+                        cmd: caps[2].to_string(),
+                        start: timestamp,
+                        line: line_num,
+                        docker_cached: false,
+                        ccache_hitrate: None,
+                    });
                 }
-            } else if let Some((_, _, _, ref mut output)) = current_command {
-                // Add line to current command output
-                output.push(line.to_string());
+            } else if let Some(ref mut p) = pending {
+                if p.cmd.contains("docker build") && line.contains(" CACHED") {
+                    p.docker_cached = true;
+                }
+                if p.cmd.contains("ccache --show-stats")
+                    && line.contains("Hits:")
+                    && let Some(caps) = ccache_hitrate_regex().captures(&line)
+                {
+                    p.ccache_hitrate = caps[1].trim_end_matches('%').parse::<f64>().ok();
+                }
             }
         }
 
-        // Process final command using job completion timestamp
-        if let Some((cmd, start_time, line, output)) = current_command {
-            let duration = if job_completed_at > 0 {
-                job_completed_at - start_time.timestamp()
-            } else {
-                1 // Fallback to 1 second if no completion time available
-            };
-
-            runtime_stats.process_command(&cmd, duration, &output);
-            if duration >= 1 {
-                commands.push(Command {
-                    cmd: cmd.clone(),
-                    line,
-                    duration,
-                });
-            }
+        if let Some(prev) = pending {
+            let end = DateTime::from_timestamp(job_completed_at, 0).unwrap_or(prev.start);
+            finalize_command(prev, end, &mut commands, &mut runtime_stats);
         }
 
-        (commands, runtime_stats)
+        Ok((line_count, commands, runtime_stats))
+    }
+}
+
+fn finalize_command(
+    prev: PendingCommand,
+    end: DateTime<Utc>,
+    commands: &mut Vec<Command>,
+    stats: &mut TaskRuntimeStats,
+) {
+    let duration = (end - prev.start).num_seconds();
+    stats.process_command(&prev.cmd, duration, prev.docker_cached, prev.ccache_hitrate);
+    if duration >= 1 {
+        commands.push(Command {
+            cmd: prev.cmd,
+            line: prev.line,
+            duration,
+        });
     }
 }
 

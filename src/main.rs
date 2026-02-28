@@ -69,6 +69,22 @@ enum TaskStatus {
     Aborted,
 }
 
+fn is_terminal_conclusion(conclusion: Option<&str>) -> bool {
+    matches!(
+        conclusion,
+        Some("success" | "failure" | "cancelled" | "skipped" | "timed_out" | "neutral")
+    )
+}
+
+fn status_from_conclusion(conclusion: Option<&str>) -> TaskStatus {
+    match conclusion {
+        Some("success") | Some("neutral") => TaskStatus::Completed,
+        Some("failure") | Some("timed_out") => TaskStatus::Failed,
+        Some("cancelled") | Some("skipped") => TaskStatus::Aborted,
+        _ => TaskStatus::Completed,
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "fetch-tasks-github")]
 #[command(about = "Fetch GitHub Actions workflow run data for Bitcoin Core CI stats")]
@@ -386,10 +402,7 @@ impl GitHubActionsFetcher {
                 }
 
                 let conclusion = run_value["conclusion"].as_str();
-                if !matches!(
-                    conclusion,
-                    Some("success" | "failure" | "cancelled" | "skipped" | "timed_out" | "neutral")
-                ) {
+                if !is_terminal_conclusion(conclusion) {
                     continue;
                 }
 
@@ -445,17 +458,7 @@ impl GitHubActionsFetcher {
                     }
 
                     let job_conclusion = job_value["conclusion"].as_str();
-                    if !matches!(
-                        job_conclusion,
-                        Some(
-                            "success"
-                                | "failure"
-                                | "cancelled"
-                                | "skipped"
-                                | "timed_out"
-                                | "neutral"
-                        )
-                    ) {
+                    if !is_terminal_conclusion(job_conclusion) {
                         continue;
                     }
 
@@ -505,19 +508,8 @@ impl GitHubActionsFetcher {
         };
 
         // Map GitHub conclusion to task status
-        let status = match job_value["conclusion"].as_str() {
-            Some("success") | Some("neutral") => TaskStatus::Completed,
-            Some("failure") | Some("timed_out") => TaskStatus::Failed,
-            Some("cancelled") | Some("skipped") => TaskStatus::Aborted,
-            _ => TaskStatus::Completed,
-        };
-
-        let build_status = match run_value["conclusion"].as_str() {
-            Some("success") | Some("neutral") => TaskStatus::Completed,
-            Some("failure") | Some("timed_out") => TaskStatus::Failed,
-            Some("cancelled") | Some("skipped") => TaskStatus::Aborted,
-            _ => TaskStatus::Completed,
-        };
+        let status = status_from_conclusion(job_value["conclusion"].as_str());
+        let build_status = status_from_conclusion(run_value["conclusion"].as_str());
 
         let build = Build {
             id: run_value["id"].as_u64().unwrap_or(0),

@@ -1,0 +1,12 @@
+2026-02-28T16:38:00.6166555Z + docker buildx build --file=/home/admin/actions-runner/_work/bitcoin/bitcoin/ci/test_imagefile --build-arg=CI_IMAGE_NAME_TAG=mirror.gcr.io/ubuntu:24.04 --build-arg=FILE_ENV=./ci/test/00_setup_env_native_nowallet.sh --build-arg=BASE_ROOT_DIR=/home/admin/actions-runner/_work/_temp --platform=linux --label=bitcoin-ci-test --tag=ci_native_nowallet --cache-from type=gha,url=http://127.0.0.1:12321/,url_v2=http://127.0.0.1:12321/,scope=ci_native_nowallet --load /home/admin/actions-runner/_work/bitcoin/bitcoin
+2026-02-28T16:38:02.9365278Z #7 CACHED
+2026-02-28T16:38:02.9365625Z #8 CACHED
+2026-02-28T16:48:38.2096786Z + ccache --zero-stats
+2026-02-28T16:48:38.2495150Z + cmake -S /home/admin/actions-runner/_work/_temp -B /home/admin/actions-runner/_work/_temp/build
+2026-02-28T16:48:48.7307863Z + cmake --build /home/admin/actions-runner/_work/_temp/build -j4 --target all install
+2026-02-28T16:57:23.9041767Z + ccache --show-stats --verbose
+2026-02-28T16:57:23.9087655Z   Hits:                7 / 778 ( 0.90%)
+2026-02-28T16:57:23.9098673Z ++ ccache --show-stats
+2026-02-28T16:57:23.9098816Z ++ grep Hits:
+2026-02-28T16:57:23.9545309Z + ctest --test-dir /home/admin/actions-runner/_work/_temp/build --stop-on-failure -j4 --timeout 2400
+2026-02-28T17:04:33.1875890Z Cleaning up orphan processes

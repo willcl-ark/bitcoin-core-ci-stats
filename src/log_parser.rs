@@ -10,7 +10,9 @@ use crate::models::{Command, TaskRuntimeStats};
 /// Pattern matches both "75.69%" and "100%" formats.
 fn ccache_hitrate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\((\d+(?:\.\d+)?%)\)").expect("valid ccache hitrate regex"))
+    RE.get_or_init(|| {
+        Regex::new(r"\(\s*(\d+(?:\.\d+)?%)\)").expect("valid ccache hitrate regex")
+    })
 }
 
 /// Returns a compiled regex for parsing GitHub Actions log command lines.
@@ -92,4 +94,58 @@ pub fn parse_job_log<R: BufRead>(
     }
 
     Ok((line_count, commands, runtime_stats))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_job_log;
+    use chrono::DateTime;
+    use std::fs;
+    use std::io::Cursor;
+
+    fn fixture_content() -> String {
+        let path = format!(
+            "{}/tests/fixtures/bitcoin-job-65254626824-excerpt.log",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        fs::read_to_string(path).expect("read fixture log")
+    }
+
+    #[test]
+    fn parses_real_github_job_excerpt_fixture() {
+        let completed_at = DateTime::parse_from_rfc3339("2026-02-28T17:04:37Z")
+            .expect("valid timestamp")
+            .timestamp();
+        let content = fixture_content();
+        let (line_count, commands, stats) =
+            parse_job_log(Cursor::new(content), completed_at).expect("parse fixture");
+
+        assert!(line_count >= 10);
+        assert!(!commands.is_empty());
+        assert!(commands.iter().any(|c| c.cmd.contains("docker buildx build")));
+        assert!(commands.iter().any(|c| c.cmd.contains("cmake -S ")));
+        assert!(commands.iter().any(|c| c.cmd.contains("cmake --build ")));
+        assert!(commands.iter().any(|c| c.cmd.contains("ctest ")));
+
+        assert!(stats.docker_build_cached);
+        assert_eq!(stats.ccache_hitrate, Some(0.9));
+        assert!(stats.build_duration.is_some());
+        assert!(stats.unit_test_duration.is_some());
+    }
+
+    #[test]
+    fn parses_truncated_log_without_failing() {
+        let log = "\
+2026-02-28T16:48:38.2495150Z + cmake -S /tmp -B /tmp/build\n\
+2026-02-28T16:48:48.7307863Z + cmake --build /tmp/build -j4\n";
+        let completed_at = DateTime::parse_from_rfc3339("2026-02-28T16:48:50Z")
+            .expect("valid timestamp")
+            .timestamp();
+        let (_line_count, commands, stats) =
+            parse_job_log(Cursor::new(log), completed_at).expect("parse truncated log");
+
+        assert_eq!(commands.len(), 2);
+        assert!(stats.configure_duration.is_some());
+        assert!(stats.build_duration.is_some());
+    }
 }

@@ -140,7 +140,9 @@ impl TaskRuntimeStats {
         } else if cmd.contains("cmake --build ") {
             self.build_duration = Some(duration_secs);
         } else if cmd.contains("ccache --show-stats") {
-            self.ccache_hitrate = ccache_hitrate;
+            if ccache_hitrate.is_some() {
+                self.ccache_hitrate = ccache_hitrate;
+            }
         } else if cmd.contains("ctest ") {
             self.unit_test_duration = Some(duration_secs);
         } else if cmd.contains("test/functional/test_runner.py ") {

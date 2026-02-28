@@ -208,7 +208,7 @@ struct Command {
     duration: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct TaskRuntimeStats {
     /// Compiler cache hit rate as a percentage (0.0-100.0)
     #[serde(
@@ -246,22 +246,6 @@ struct TaskRuntimeStats {
         skip_serializing_if = "Option::is_none"
     )]
     depends_build_duration: Option<i64>,
-}
-
-impl Default for TaskRuntimeStats {
-    fn default() -> Self {
-        Self {
-            ccache_hitrate: None,
-            docker_build_cached: false,
-            docker_build_duration: None,
-            ccache_zerostats_duration: None,
-            configure_duration: None,
-            build_duration: None,
-            unit_test_duration: None,
-            functional_test_duration: None,
-            depends_build_duration: None,
-        }
-    }
 }
 
 impl TaskRuntimeStats {
@@ -424,18 +408,18 @@ impl GitHubActionsFetcher {
 
                 if is_backfill {
                     // Skip runs above the backfill cursor (already processed)
-                    if let Some(cursor) = backfill_cursor {
-                        if run_id >= cursor {
-                            continue;
-                        }
+                    if let Some(cursor) = backfill_cursor
+                        && run_id >= cursor
+                    {
+                        continue;
                     }
 
                     // Stop when we reach the backfill target
-                    if let Some(target) = backfill_target {
-                        if run_id <= target {
-                            info!("Reached backfill target {}, stopping", target);
-                            return Ok(all_tasks);
-                        }
+                    if let Some(target) = backfill_target
+                        && run_id <= target
+                    {
+                        info!("Reached backfill target {}, stopping", target);
+                        return Ok(all_tasks);
                     }
 
                     // Skip runs we already have
@@ -444,11 +428,11 @@ impl GitHubActionsFetcher {
                     }
                 } else {
                     // Normal mode: stop at checkpoint
-                    if let Some(since_id) = since_run_id {
-                        if run_id <= since_id {
-                            info!("Reached checkpoint run ID {}, stopping fetch", since_id);
-                            return Ok(all_tasks);
-                        }
+                    if let Some(since_id) = since_run_id
+                        && run_id <= since_id
+                    {
+                        info!("Reached checkpoint run ID {}, stopping fetch", since_id);
+                        return Ok(all_tasks);
                     }
                 }
 
@@ -838,15 +822,15 @@ async fn main() -> Result<()> {
         info!("No new tasks to process");
         // Still update backfill cursor if in backfill mode with no new tasks
         // (all runs in this page range were already fetched)
-        if args.checkpoint && is_backfill {
-            if let Some(ref mut cp) = checkpoint {
-                // Backfill made no progress — likely complete or stuck
-                info!("Backfill produced no new tasks; clearing backfill fields");
-                cp.backfill_cursor = None;
-                cp.backfill_target = None;
-                cp.last_fetched_at = chrono::Utc::now();
-                cp.save()?;
-            }
+        if args.checkpoint && is_backfill
+            && let Some(ref mut cp) = checkpoint
+        {
+            // Backfill made no progress — likely complete or stuck
+            info!("Backfill produced no new tasks; clearing backfill fields");
+            cp.backfill_cursor = None;
+            cp.backfill_target = None;
+            cp.last_fetched_at = chrono::Utc::now();
+            cp.save()?;
         }
         return Ok(());
     }

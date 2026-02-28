@@ -50,6 +50,10 @@ fn required_str<'a>(value: &'a serde_json::Value, field: &'static str) -> Result
         .ok_or(AppError::MissingField(field).into())
 }
 
+fn emit_github_actions_warning(message: &str) {
+    println!("::warning title=fetch-tasks-github::{message}");
+}
+
 pub struct GitHubActionsFetcher {
     octocrab: Octocrab,
     owner: String,
@@ -97,6 +101,9 @@ impl GitHubActionsFetcher {
         let mut page = 1;
         let per_page = 100;
         let mut new_job_count = 0;
+        let mut skipped_runs = 0usize;
+        let mut skipped_jobs = 0usize;
+        let mut log_processing_failures = 0usize;
 
         while new_job_count < max_runs {
             let url = format!(
@@ -123,9 +130,11 @@ impl GitHubActionsFetcher {
                     continue;
                 }
 
-                let run_id = run_value["id"]
-                    .as_u64()
-                    .ok_or(AppError::MissingField("id"))?;
+                let Some(run_id) = run_value["id"].as_u64() else {
+                    skipped_runs += 1;
+                    warn!("Skipping run with missing id field");
+                    continue;
+                };
 
                 if is_backfill {
                     if let Some(cursor) = backfill_cursor
@@ -156,10 +165,19 @@ impl GitHubActionsFetcher {
                     self.owner, self.repo, run_id
                 );
                 let jobs_response: serde_json::Value =
-                    self.octocrab.get(&jobs_url, None::<&()>).await?;
-                let jobs = jobs_response["jobs"]
-                    .as_array()
-                    .ok_or(AppError::MissingField("jobs"))?;
+                    match self.octocrab.get(&jobs_url, None::<&()>).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            skipped_runs += 1;
+                            warn!("Skipping run {} after jobs fetch error: {}", run_id, e);
+                            continue;
+                        }
+                    };
+                let Some(jobs) = jobs_response["jobs"].as_array() else {
+                    skipped_runs += 1;
+                    warn!("Skipping run {} with malformed jobs payload", run_id);
+                    continue;
+                };
 
                 for job_value in jobs {
                     let job_name = job_value["name"].as_str().unwrap_or("");
@@ -172,7 +190,21 @@ impl GitHubActionsFetcher {
                         continue;
                     }
 
-                    let task = self.convert_json_to_task(run_value, job_value).await?;
+                    let job_id_hint = job_value["id"].as_u64().unwrap_or(0);
+                    let task = match self.convert_json_to_task(run_value, job_value).await {
+                        Ok(task) => task,
+                        Err(e) => {
+                            skipped_jobs += 1;
+                            warn!(
+                                "Skipping job {} in run {} after conversion error: {}",
+                                job_id_hint, run_id, e
+                            );
+                            continue;
+                        }
+                    };
+                    if task.log_status_code != 200 {
+                        log_processing_failures += 1;
+                    }
                     all_tasks.push(task);
                     new_job_count += 1;
 
@@ -183,6 +215,15 @@ impl GitHubActionsFetcher {
             }
 
             page += 1;
+        }
+
+        if skipped_runs > 0 || skipped_jobs > 0 || log_processing_failures > 0 {
+            let summary = format!(
+                "completed with partial failures: skipped_runs={}, skipped_jobs={}, log_processing_failures={}",
+                skipped_runs, skipped_jobs, log_processing_failures
+            );
+            warn!("{}", summary);
+            emit_github_actions_warning(&summary);
         }
 
         info!("Fetched {} jobs from GitHub Actions", all_tasks.len());

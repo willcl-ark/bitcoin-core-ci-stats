@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::io::{BufRead, BufReader, Seek, SeekFrom, Write};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::{info, warn};
@@ -270,6 +271,16 @@ struct PendingCommand {
     line: usize,
     docker_cached: bool,
     ccache_hitrate: Option<f64>,
+}
+
+struct TempFileGuard {
+    path: PathBuf,
+}
+
+impl Drop for TempFileGuard {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -578,13 +589,32 @@ impl GitHubActionsFetcher {
             anyhow::bail!("HTTP {}", response.status().as_u16());
         }
 
-        let tmp_path = std::env::temp_dir().join("fetch-tasks-github.log");
-        let mut file = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&tmp_path)?;
+        let mut attempt = 0u32;
+        let file_path = loop {
+            let path = std::env::temp_dir().join(format!(
+                "fetch-tasks-github-{}-{}-{}.log",
+                job_id,
+                std::process::id(),
+                attempt
+            ));
+            match fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => break path,
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    attempt += 1;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        };
+
+        let _tmp_guard = TempFileGuard {
+            path: file_path.clone(),
+        };
+        let mut file = fs::OpenOptions::new().read(true).write(true).open(&file_path)?;
 
         let mut body = Box::pin(http_body_util::Limited::new(
             response.into_body(),

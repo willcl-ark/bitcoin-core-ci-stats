@@ -716,7 +716,7 @@ fn save_tasks(tasks: &[Task]) -> Result<()> {
     // Load existing tasks
     let mut all_tasks = if std::path::Path::new(TASKS_FILENAME).exists() {
         let content = fs::read_to_string(TASKS_FILENAME)?;
-        serde_json::from_str::<Vec<Task>>(&content).unwrap_or_default()
+        serde_json::from_str::<Vec<Task>>(&content)?
     } else {
         Vec::new()
     };

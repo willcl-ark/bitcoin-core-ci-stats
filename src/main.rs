@@ -637,7 +637,7 @@ impl GitHubActionsFetcher {
         let mut line_count: usize = 0;
 
         for (line_num, line_result) in reader.lines().enumerate() {
-            let Ok(line) = line_result else { continue };
+            let line = line_result?;
             line_count = line_num + 1;
 
             if let Some(caps) = command_pattern_regex().captures(&line) {

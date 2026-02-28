@@ -85,6 +85,18 @@ fn status_from_conclusion(conclusion: Option<&str>) -> TaskStatus {
     }
 }
 
+fn required_u64(value: &serde_json::Value, field: &'static str) -> Result<u64> {
+    value[field]
+        .as_u64()
+        .ok_or(AppError::MissingField(field).into())
+}
+
+fn required_str<'a>(value: &'a serde_json::Value, field: &'static str) -> Result<&'a str> {
+    value[field]
+        .as_str()
+        .ok_or(AppError::MissingField(field).into())
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "fetch-tasks-github")]
 #[command(about = "Fetch GitHub Actions workflow run data for Bitcoin Core CI stats")]
@@ -508,33 +520,27 @@ impl GitHubActionsFetcher {
         };
 
         // Map GitHub conclusion to task status
-        let status = status_from_conclusion(job_value["conclusion"].as_str());
-        let build_status = status_from_conclusion(run_value["conclusion"].as_str());
+        let status = status_from_conclusion(Some(required_str(job_value, "conclusion")?));
+        let build_status = status_from_conclusion(Some(required_str(run_value, "conclusion")?));
 
         let build = Build {
-            id: run_value["id"].as_u64().unwrap_or(0),
+            id: required_u64(run_value, "id")?,
             status: build_status,
-            branch: run_value["head_branch"]
-                .as_str()
-                .unwrap_or("unknown")
-                .to_string(),
-            change_id_in_repo: run_value["head_sha"].as_str().unwrap_or("").to_string(),
-            change_message_title: run_value["display_title"]
-                .as_str()
-                .unwrap_or("")
-                .to_string(),
+            branch: required_str(run_value, "head_branch")?.to_string(),
+            change_id_in_repo: required_str(run_value, "head_sha")?.to_string(),
+            change_message_title: required_str(run_value, "display_title")?.to_string(),
             build_created_timestamp: run_created_at,
         };
 
         // Fetch and parse job log
-        let job_id = job_value["id"].as_u64().unwrap_or(0);
+        let job_id = required_u64(job_value, "id")?;
         let (log_status_code, commands, runtime_stats) =
             self.fetch_and_parse_job_log(job_id, job_completed_at).await;
 
         Ok(Task {
             id: job_id,
             status,
-            name: job_value["name"].as_str().unwrap_or("").to_string(),
+            name: required_str(job_value, "name")?.to_string(),
             creation_timestamp: run_created_at,
             scheduled_timestamp: job_started_at,
             executing_timestamp: job_started_at,

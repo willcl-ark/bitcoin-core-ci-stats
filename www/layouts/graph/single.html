@@ -66,6 +66,7 @@
         titleText = "task schedule + execution duration"
         dataCallback = (data, name) => data
             .filter(item => item.name === name)
+            .filter(item => item.scheduleDuration < 21600)
             .map(item => ({ x: item.created * 1000, y: item.duration + item.scheduleDuration, task: item.id }))
       {{ end }}
       // for SCHEDULE-DURATION chart

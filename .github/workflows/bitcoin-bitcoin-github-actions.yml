@@ -66,7 +66,7 @@ jobs:
 
     - name: Commit and push changes
       run: |
-        git add tasks.json.gz graph.json .checkpoint.json
+        git add tasks.json.gz graph.json stats.json .checkpoint.json
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else

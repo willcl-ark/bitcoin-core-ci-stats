@@ -1,8 +1,8 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::constants::{GRAPH_FILENAME, TASKS_FILENAME};
-use crate::models::{GraphStats, Task, TaskStatus};
+use crate::constants::{GRAPH_FILENAME, STATS_FILENAME, TASKS_FILENAME};
+use crate::models::{GraphStats, Stats, Task, TaskStatus};
 
 pub fn load_existing_task_ids() -> Result<HashSet<u64>> {
     if !std::path::Path::new(TASKS_FILENAME).exists() {
@@ -38,6 +38,22 @@ pub fn save_tasks(tasks: &[Task]) -> Result<()> {
     let tasks_json = serde_json::to_string_pretty(&all_tasks)?;
     std::fs::write(TASKS_FILENAME, tasks_json)?;
 
+    save_derived_data(&all_tasks)?;
+
+    Ok(())
+}
+
+pub fn save_derived_data_from_existing_tasks() -> Result<()> {
+    if !std::path::Path::new(TASKS_FILENAME).exists() {
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(TASKS_FILENAME)?;
+    let all_tasks = serde_json::from_str::<Vec<Task>>(&content)?;
+    save_derived_data(&all_tasks)
+}
+
+fn save_derived_data(all_tasks: &[Task]) -> Result<()> {
     let graph_stats: Vec<GraphStats> = all_tasks
         .iter()
         .filter(|task| task.status == TaskStatus::Completed)
@@ -46,6 +62,10 @@ pub fn save_tasks(tasks: &[Task]) -> Result<()> {
 
     let graph_json = serde_json::to_string_pretty(&graph_stats)?;
     std::fs::write(GRAPH_FILENAME, graph_json)?;
+
+    let stats = Stats::from(all_tasks);
+    let stats_json = serde_json::to_string_pretty(&stats)?;
+    std::fs::write(STATS_FILENAME, stats_json)?;
 
     Ok(())
 }

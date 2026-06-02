@@ -1,0 +1,345 @@
+{{ define "main" }}
+
+<h1>{{ .Title }}</h1>
+
+<div id="stats-loading">Loading stats...</div>
+
+<div id="stats" class="d-none">
+  <div class="row g-3 mb-4" id="summary"></div>
+
+  <div class="mb-3">
+    <div class="btn-group" role="group" aria-label="Stats period">
+      <input type="radio" class="btn-check" name="period" id="period-daily" value="daily" checked>
+      <label class="btn btn-outline-primary" for="period-daily">day</label>
+      <input type="radio" class="btn-check" name="period" id="period-weekly" value="weekly">
+      <label class="btn btn-outline-primary" for="period-weekly">week</label>
+      <input type="radio" class="btn-check" name="period" id="period-monthly" value="monthly">
+      <label class="btn btn-outline-primary" for="period-monthly">month</label>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12">
+      <canvas id="runs-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="tasks-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="queue-median-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="queue-p90-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="queue-p99-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="outcome-chart" height="120"></canvas>
+    </div>
+    <div class="col-12">
+      <canvas id="wasted-chart" height="120"></canvas>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-2">
+    <div class="col-lg-6">
+      <h2>Top jobs by task count</h2>
+      <div id="top-jobs"></div>
+    </div>
+    <div class="col-lg-6">
+      <h2>Top jobs by failures</h2>
+      <div id="failed-jobs"></div>
+    </div>
+    <div class="col-lg-6">
+      <h2>Slowest jobs</h2>
+      <div id="slowest-jobs"></div>
+    </div>
+    <div class="col-lg-6">
+      <h2>Top branches</h2>
+      <div id="top-branches"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const seconds = new Intl.NumberFormat();
+  const percent = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  });
+
+  function formatDuration(value) {
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60);
+    const secs = value % 60;
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${secs}s`;
+    }
+    return `${secs}s`;
+  }
+
+  function formatHours(value) {
+    return `${percent.format(value / 3600)}h`;
+  }
+
+  function outcomeRate(row, key) {
+    return row.tasks === 0 ? 0 : row[key] * 100 / row.tasks;
+  }
+
+  function summaryCard(label, value, detail) {
+    return `
+      <div class="col-sm-6 col-xl-3">
+        <div class="border rounded p-3 h-100">
+          <div class="text-secondary">${label}</div>
+          <div class="fs-3">${value}</div>
+          <div class="small text-secondary">${detail}</div>
+        </div>
+      </div>`;
+  }
+
+  function renderTable(id, columns, rows) {
+    const thead = columns.map((column) => `<th scope="col">${column.label}</th>`).join("");
+    const tbody = rows.map((row) => {
+      const cells = columns.map((column) => `<td>${column.value(row)}</td>`).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+    document.getElementById(id).innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-sm table-striped">
+          <thead><tr>${thead}</tr></thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderSummary(stats) {
+    const totals = stats.totals;
+    const failedRate = totals.tasks === 0 ? 0 : totals.failed * 100 / totals.tasks;
+    document.getElementById("summary").innerHTML = [
+      summaryCard("runs", seconds.format(totals.runs), `${seconds.format(totals.tasks)} tasks`),
+      summaryCard("failed tasks", seconds.format(totals.failed), `${percent.format(failedRate)}% of tasks`),
+      summaryCard("median queue", formatDuration(totals.medianQueueDuration), "creation to execution"),
+      summaryCard("median execution", formatDuration(totals.medianExecutionDuration), "task runtime"),
+      summaryCard("wasted runner time", formatHours(totals.wastedRunnerDuration), "failed and aborted tasks"),
+    ].join("");
+  }
+
+  function renderCharts(stats) {
+    let runsChart;
+    let tasksChart;
+    let queueMedianChart;
+    let queueP90Chart;
+    let queueP99Chart;
+    let outcomeChart;
+    let wastedChart;
+
+    function datasets(period) {
+      const rows = stats.series[period];
+      const labels = rows.map((row) => row.period);
+      return { rows, labels };
+    }
+
+    function draw(period) {
+      const { rows, labels } = datasets(period);
+      if (runsChart) {
+        runsChart.destroy();
+      }
+      if (tasksChart) {
+        tasksChart.destroy();
+      }
+      if (queueMedianChart) {
+        queueMedianChart.destroy();
+      }
+      if (queueP90Chart) {
+        queueP90Chart.destroy();
+      }
+      if (queueP99Chart) {
+        queueP99Chart.destroy();
+      }
+      if (outcomeChart) {
+        outcomeChart.destroy();
+      }
+      if (wastedChart) {
+        wastedChart.destroy();
+      }
+
+      runsChart = new Chart(document.getElementById("runs-chart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "runs", data: rows.map((row) => row.runs), backgroundColor: "#0d6efd" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: { y: { beginAtZero: true } },
+          plugins: { title: { display: true, text: "CI runs" } },
+        },
+      });
+
+      tasksChart = new Chart(document.getElementById("tasks-chart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "tasks", data: rows.map((row) => row.tasks), backgroundColor: "#6c757d" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: { y: { beginAtZero: true } },
+          plugins: { title: { display: true, text: "CI tasks" } },
+        },
+      });
+
+      queueMedianChart = new Chart(document.getElementById("queue-median-chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "median queue", data: rows.map((row) => row.medianQueueDuration), borderColor: "#0d6efd" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: (value) => formatDuration(value) },
+            },
+          },
+          plugins: { title: { display: true, text: "Median queue duration" } },
+        },
+      });
+
+      queueP90Chart = new Chart(document.getElementById("queue-p90-chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "p90 queue", data: rows.map((row) => row.p90QueueDuration), borderColor: "#fd7e14" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: (value) => formatDuration(value) },
+            },
+          },
+          plugins: { title: { display: true, text: "P90 queue duration" } },
+        },
+      });
+
+      queueP99Chart = new Chart(document.getElementById("queue-p99-chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "p99 queue", data: rows.map((row) => row.p99QueueDuration), borderColor: "#dc3545" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: (value) => formatDuration(value) },
+            },
+          },
+          plugins: { title: { display: true, text: "P99 queue duration" } },
+        },
+      });
+
+      outcomeChart = new Chart(document.getElementById("outcome-chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "completed", data: rows.map((row) => outcomeRate(row, "completed")), borderColor: "#198754" },
+            { label: "failed", data: rows.map((row) => outcomeRate(row, "failed")), borderColor: "#dc3545" },
+            { label: "aborted", data: rows.map((row) => outcomeRate(row, "aborted")), borderColor: "#fd7e14" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: (value) => `${value}%` },
+            },
+          },
+          plugins: { title: { display: true, text: "Outcome rate" } },
+        },
+      });
+
+      wastedChart = new Chart(document.getElementById("wasted-chart"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "runner hours", data: rows.map((row) => row.wastedRunnerDuration / 3600), backgroundColor: "#6f42c1" },
+          ],
+        },
+        options: {
+          animation: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: (value) => `${value}h` },
+            },
+          },
+          plugins: { title: { display: true, text: "Wasted runner time from failed and aborted tasks" } },
+        },
+      });
+    }
+
+    document.querySelectorAll("input[name='period']").forEach((input) => {
+      input.addEventListener("change", () => draw(input.value));
+    });
+    draw("daily");
+  }
+
+  fetch('{{ relURL "stats.json" }}')
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then((stats) => {
+      renderSummary(stats);
+      renderCharts(stats);
+      renderTable("top-jobs", [
+        { label: "job", value: (row) => row.name },
+        { label: "tasks", value: (row) => seconds.format(row.count) },
+      ], stats.topJobsByTasks);
+      renderTable("failed-jobs", [
+        { label: "job", value: (row) => row.name },
+        { label: "failures", value: (row) => seconds.format(row.count) },
+      ], stats.topJobsByFailures);
+      renderTable("slowest-jobs", [
+        { label: "job", value: (row) => row.name },
+        { label: "median", value: (row) => formatDuration(row.medianDuration) },
+        { label: "samples", value: (row) => seconds.format(row.samples) },
+      ], stats.slowestJobs);
+      renderTable("top-branches", [
+        { label: "branch", value: (row) => row.name },
+        { label: "tasks", value: (row) => seconds.format(row.count) },
+      ], stats.topBranches);
+
+      document.getElementById("stats-loading").classList.add("d-none");
+      document.getElementById("stats").classList.remove("d-none");
+    })
+    .catch((error) => {
+      document.getElementById("stats-loading").innerText = `Error loading stats: ${error}`;
+    });
+</script>
+
+{{ end }}

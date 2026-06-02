@@ -3,7 +3,10 @@ use clap::Parser;
 use fetch_tasks_github::constants::DEFAULT_RUNS_TO_QUERY;
 use fetch_tasks_github::github::GitHubActionsFetcher;
 use fetch_tasks_github::models::Checkpoint;
-use fetch_tasks_github::storage::{load_existing_run_ids, load_existing_task_ids, save_tasks};
+use fetch_tasks_github::storage::{
+    load_existing_run_ids, load_existing_task_ids, save_derived_data_from_existing_tasks,
+    save_tasks,
+};
 use tracing::info;
 
 #[derive(Parser, Debug)]
@@ -118,7 +121,9 @@ async fn main() -> Result<()> {
 
     if new_tasks.is_empty() {
         info!("No new tasks to process");
-        if args.checkpoint && is_backfill
+        save_derived_data_from_existing_tasks()?;
+        if args.checkpoint
+            && is_backfill
             && let Some(ref mut cp) = checkpoint
         {
             info!("Backfill produced no new tasks; clearing backfill fields");

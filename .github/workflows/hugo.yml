@@ -64,7 +64,7 @@ jobs:
           if wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/stats.json; then
             mv stats.json www/static/stats.json
           else
-            echo '{"generatedFromTasks":0,"totals":{"runs":0,"tasks":0,"completed":0,"failed":0,"aborted":0,"medianQueueDuration":0,"medianExecutionDuration":0},"series":{"daily":[],"weekly":[],"monthly":[]},"topJobsByTasks":[],"topJobsByFailures":[],"slowestJobs":[],"topBranches":[]}' > www/static/stats.json
+            echo '{"generatedFromTasks":0,"totals":{"runs":0,"tasks":0,"completed":0,"failed":0,"aborted":0,"medianQueueDuration":0,"p90QueueDuration":0,"p99QueueDuration":0,"medianExecutionDuration":0,"p90ExecutionDuration":0,"p99ExecutionDuration":0,"wastedRunnerDuration":0},"series":{"daily":[],"weekly":[],"monthly":[]},"topJobsByTasks":[],"topJobsByFailures":[],"slowestJobs":[],"topBranches":[],"branchSummary":{"averageCount":0,"medianCount":0,"averageDuration":0,"medianDuration":0}}' > www/static/stats.json
           fi
       - name: Build with Hugo
         env:

@@ -195,7 +195,8 @@ pub struct Stats {
     pub top_jobs_by_tasks: Vec<NamedCount>,
     pub top_jobs_by_failures: Vec<NamedCount>,
     pub slowest_jobs: Vec<NamedDuration>,
-    pub top_branches: Vec<NamedCount>,
+    pub top_branches: Vec<BranchStats>,
+    pub branch_summary: BranchSummary,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -252,6 +253,23 @@ pub struct NamedDuration {
     pub name: String,
     pub median_duration: i64,
     pub samples: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchStats {
+    pub name: String,
+    pub count: usize,
+    pub duration: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BranchSummary {
+    pub average_count: f64,
+    pub median_count: usize,
+    pub average_duration: f64,
+    pub median_duration: i64,
 }
 
 #[derive(Default)]
@@ -316,6 +334,7 @@ impl From<&[Task]> for Stats {
         let mut job_failures = HashMap::new();
         let mut job_durations: HashMap<String, Vec<i64>> = HashMap::new();
         let mut branch_counts = HashMap::new();
+        let mut branch_durations = HashMap::new();
 
         for task in tasks {
             totals.add_task(task);
@@ -347,6 +366,9 @@ impl From<&[Task]> for Stats {
                 .or_default()
                 .push(task.duration);
             *branch_counts.entry(task.build.branch.clone()).or_insert(0) += 1;
+            *branch_durations
+                .entry(task.build.branch.clone())
+                .or_insert(0) += task.duration.max(0);
         }
 
         let totals = StatsTotals {
@@ -375,7 +397,8 @@ impl From<&[Task]> for Stats {
             top_jobs_by_tasks: top_counts(job_counts, 10),
             top_jobs_by_failures: top_counts(job_failures, 10),
             slowest_jobs: slowest_jobs(job_durations, 10),
-            top_branches: top_counts(branch_counts, 10),
+            branch_summary: branch_summary(&branch_counts, &branch_durations),
+            top_branches: top_branches(branch_counts, branch_durations, 10),
         }
     }
 }
@@ -430,4 +453,47 @@ fn slowest_jobs(durations: HashMap<String, Vec<i64>>, limit: usize) -> Vec<Named
     });
     durations.truncate(limit);
     durations
+}
+
+fn top_branches(
+    counts: HashMap<String, usize>,
+    durations: HashMap<String, i64>,
+    limit: usize,
+) -> Vec<BranchStats> {
+    let mut branches: Vec<_> = counts
+        .into_iter()
+        .map(|(name, count)| BranchStats {
+            duration: *durations.get(&name).unwrap_or(&0),
+            name,
+            count,
+        })
+        .collect();
+    branches.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.name.cmp(&b.name)));
+    branches.truncate(limit);
+    branches
+}
+
+fn branch_summary(
+    counts: &HashMap<String, usize>,
+    durations: &HashMap<String, i64>,
+) -> BranchSummary {
+    let average_count = if counts.is_empty() {
+        0.0
+    } else {
+        counts.values().sum::<usize>() as f64 / counts.len() as f64
+    };
+    let average_duration = if durations.is_empty() {
+        0.0
+    } else {
+        durations.values().sum::<i64>() as f64 / durations.len() as f64
+    };
+    let count_values: Vec<_> = counts.values().map(|count| *count as i64).collect();
+    let duration_values: Vec<_> = durations.values().copied().collect();
+
+    BranchSummary {
+        average_count,
+        median_count: percentile(&count_values, 50) as usize,
+        average_duration,
+        median_duration: percentile(&duration_values, 50),
+    }
 }

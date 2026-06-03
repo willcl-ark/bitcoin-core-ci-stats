@@ -103,6 +103,10 @@
     return `${percent.format(value / 3600)}h`;
   }
 
+  function formatMultiple(value) {
+    return `${percent.format(value)}x`;
+  }
+
   function outcomeRate(row, key) {
     return row.tasks === 0 ? 0 : row[key] * 100 / row.tasks;
   }
@@ -141,6 +145,14 @@
           <tbody>${tbody}</tbody>
         </table>
       </div>`;
+  }
+
+  function branchRowsWithMedian(stats) {
+    return [{
+      name: "median branch",
+      count: stats.branchSummary.medianCount,
+      duration: stats.branchSummary.medianDuration,
+    }].concat(stats.topBranches);
   }
 
   function renderSummary(stats) {
@@ -471,7 +483,14 @@
       renderTable("top-branches", [
         { label: "branch", value: (row) => row.name },
         { label: "tasks", value: (row) => seconds.format(row.count) },
-      ], stats.topBranches);
+        { label: "minutes", value: (row) => seconds.format(Math.round(row.duration / 60)) },
+        {
+          label: "vs median",
+          value: (row) => stats.branchSummary.medianDuration === 0
+            ? "n/a"
+            : formatMultiple(row.duration / stats.branchSummary.medianDuration),
+        },
+      ], branchRowsWithMedian(stats));
 
       document.getElementById("stats-loading").classList.add("d-none");
       document.getElementById("stats").classList.remove("d-none");

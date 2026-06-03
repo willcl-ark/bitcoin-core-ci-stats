@@ -18,6 +18,23 @@
     </div>
   </div>
 
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+    <div class="btn-group" role="group" aria-label="Stats range">
+      <input type="radio" class="btn-check" name="range" id="range-12m" value="12" checked>
+      <label class="btn btn-outline-primary" for="range-12m">12 months</label>
+      <input type="radio" class="btn-check" name="range" id="range-6m" value="6">
+      <label class="btn btn-outline-primary" for="range-6m">6 months</label>
+      <input type="radio" class="btn-check" name="range" id="range-3m" value="3">
+      <label class="btn btn-outline-primary" for="range-3m">3 months</label>
+      <input type="radio" class="btn-check" name="range" id="range-all" value="all">
+      <label class="btn btn-outline-primary" for="range-all">all</label>
+      <input type="radio" class="btn-check" name="range" id="range-custom" value="custom">
+      <label class="btn btn-outline-primary" for="range-custom">custom</label>
+    </div>
+    <input type="date" class="form-control form-control-sm w-auto" id="range-start" disabled>
+    <input type="date" class="form-control form-control-sm w-auto" id="range-end" disabled>
+  </div>
+
   <div class="row g-4">
     <div class="col-12">
       <canvas id="runs-chart" height="120"></canvas>
@@ -90,6 +107,16 @@
     return row.tasks === 0 ? 0 : row[key] * 100 / row.tasks;
   }
 
+  function dateInputValue(date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function subtractMonths(date, months) {
+    const copy = new Date(date);
+    copy.setUTCMonth(copy.getUTCMonth() - months);
+    return copy;
+  }
+
   function summaryCard(label, value, detail) {
     return `
       <div class="col-sm-6 col-xl-3">
@@ -137,14 +164,98 @@
     let outcomeChart;
     let wastedChart;
 
+    function isoWeekStart(year, week) {
+      const jan4 = new Date(Date.UTC(year, 0, 4));
+      const jan4Day = jan4.getUTCDay() || 7;
+      const monday = new Date(jan4);
+      monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1 + (week - 1) * 7);
+      return monday;
+    }
+
+    function periodDate(period, value) {
+      if (period === "daily") {
+        return new Date(`${value}T00:00:00Z`);
+      }
+      if (period === "weekly") {
+        const [year, week] = value.split("-W").map(Number);
+        return isoWeekStart(year, week);
+      }
+      return new Date(`${value}-01T00:00:00Z`);
+    }
+
+    function currentPeriod() {
+      return document.querySelector("input[name='period']:checked").value;
+    }
+
+    function currentRange(rows, period) {
+      const selected = document.querySelector("input[name='range']:checked").value;
+      if (selected === "all" || rows.length === 0) {
+        return { start: null, end: null };
+      }
+      if (selected === "custom") {
+        const startValue = document.getElementById("range-start").value;
+        const endValue = document.getElementById("range-end").value;
+        return {
+          start: startValue ? new Date(`${startValue}T00:00:00Z`) : null,
+          end: endValue ? new Date(`${endValue}T23:59:59Z`) : null,
+        };
+      }
+
+      const latest = periodDate(period, rows[rows.length - 1].period);
+      return { start: subtractMonths(latest, Number(selected)), end: latest };
+    }
+
     function datasets(period) {
-      const rows = stats.series[period];
+      const allRows = stats.series[period];
+      const range = currentRange(allRows, period);
+      const rows = allRows.filter((row) => {
+        const date = periodDate(period, row.period);
+        return (!range.start || date >= range.start) && (!range.end || date <= range.end);
+      });
       const labels = rows.map((row) => row.period);
       return { rows, labels };
     }
 
+    function trendWindow(period) {
+      return { daily: 7, weekly: 4, monthly: 3 }[period];
+    }
+
+    function trendLabel(period) {
+      return { daily: "7-day average", weekly: "4-week average", monthly: "3-month average" }[period];
+    }
+
+    function rollingAverage(values, window) {
+      let sum = 0;
+      return values.map((value, index) => {
+        sum += value;
+        if (index >= window) {
+          sum -= values[index - window];
+        }
+        return sum / Math.min(index + 1, window);
+      });
+    }
+
+    function trendDataset(label, values, color, period) {
+      return {
+        type: "line",
+        label: `${label} ${trendLabel(period)}`,
+        data: rollingAverage(values, trendWindow(period)),
+        borderColor: color,
+        borderDash: [6, 4],
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+      };
+    }
+
     function draw(period) {
       const { rows, labels } = datasets(period);
+      const runs = rows.map((row) => row.runs);
+      const tasks = rows.map((row) => row.tasks);
+      const medianQueueDurations = rows.map((row) => row.medianQueueDuration);
+      const p90QueueDurations = rows.map((row) => row.p90QueueDuration);
+      const p99QueueDurations = rows.map((row) => row.p99QueueDuration);
+      const wastedRunnerHours = rows.map((row) => row.wastedRunnerDuration / 3600);
       if (runsChart) {
         runsChart.destroy();
       }
@@ -172,7 +283,8 @@
         data: {
           labels,
           datasets: [
-            { label: "runs", data: rows.map((row) => row.runs), backgroundColor: "#0d6efd" },
+            { label: "runs", data: runs, backgroundColor: "#0d6efd" },
+            trendDataset("runs", runs, "#084298", period),
           ],
         },
         options: {
@@ -187,7 +299,8 @@
         data: {
           labels,
           datasets: [
-            { label: "tasks", data: rows.map((row) => row.tasks), backgroundColor: "#6c757d" },
+            { label: "tasks", data: tasks, backgroundColor: "#6c757d" },
+            trendDataset("tasks", tasks, "#343a40", period),
           ],
         },
         options: {
@@ -202,7 +315,8 @@
         data: {
           labels,
           datasets: [
-            { label: "median queue", data: rows.map((row) => row.medianQueueDuration), borderColor: "#0d6efd" },
+            { label: "median queue", data: medianQueueDurations, borderColor: "#0d6efd" },
+            trendDataset("median queue", medianQueueDurations, "#084298", period),
           ],
         },
         options: {
@@ -222,7 +336,8 @@
         data: {
           labels,
           datasets: [
-            { label: "p90 queue", data: rows.map((row) => row.p90QueueDuration), borderColor: "#fd7e14" },
+            { label: "p90 queue", data: p90QueueDurations, borderColor: "#fd7e14" },
+            trendDataset("p90 queue", p90QueueDurations, "#984c0c", period),
           ],
         },
         options: {
@@ -242,7 +357,8 @@
         data: {
           labels,
           datasets: [
-            { label: "p99 queue", data: rows.map((row) => row.p99QueueDuration), borderColor: "#dc3545" },
+            { label: "p99 queue", data: p99QueueDurations, borderColor: "#dc3545" },
+            trendDataset("p99 queue", p99QueueDurations, "#842029", period),
           ],
         },
         options: {
@@ -284,7 +400,8 @@
         data: {
           labels,
           datasets: [
-            { label: "runner hours", data: rows.map((row) => row.wastedRunnerDuration / 3600), backgroundColor: "#6f42c1" },
+            { label: "runner hours", data: wastedRunnerHours, backgroundColor: "#6f42c1" },
+            trendDataset("runner hours", wastedRunnerHours, "#432874", period),
           ],
         },
         options: {
@@ -300,9 +417,31 @@
       });
     }
 
+    function syncCustomRangeInputs() {
+      const custom = document.getElementById("range-custom").checked;
+      document.getElementById("range-start").disabled = !custom;
+      document.getElementById("range-end").disabled = !custom;
+    }
+
     document.querySelectorAll("input[name='period']").forEach((input) => {
-      input.addEventListener("change", () => draw(input.value));
+      input.addEventListener("change", () => draw(currentPeriod()));
     });
+    document.querySelectorAll("input[name='range']").forEach((input) => {
+      input.addEventListener("change", () => {
+        syncCustomRangeInputs();
+        draw(currentPeriod());
+      });
+    });
+    document.getElementById("range-start").addEventListener("change", () => draw(currentPeriod()));
+    document.getElementById("range-end").addEventListener("change", () => draw(currentPeriod()));
+
+    const dailyRows = stats.series.daily;
+    if (dailyRows.length > 0) {
+      const latest = periodDate("daily", dailyRows[dailyRows.length - 1].period);
+      document.getElementById("range-start").value = dateInputValue(subtractMonths(latest, 12));
+      document.getElementById("range-end").value = dateInputValue(latest);
+    }
+    syncCustomRangeInputs();
     draw("daily");
   }
 

@@ -1,14 +1,14 @@
 {
-  "generatedFromTasks": 208525,
+  "generatedFromTasks": 208606,
   "totals": {
-    "runs": 8745,
-    "tasks": 208525,
-    "completed": 173750,
+    "runs": 8748,
+    "tasks": 208606,
+    "completed": 173829,
     "failed": 8557,
-    "aborted": 26218,
+    "aborted": 26220,
     "medianQueueDuration": 29,
     "p90QueueDuration": 1330,
-    "p99QueueDuration": 27927,
+    "p99QueueDuration": 27926,
     "medianExecutionDuration": 950,
     "p90ExecutionDuration": 2574,
     "p99ExecutionDuration": 4711,
@@ -4608,17 +4608,17 @@
       },
       {
         "period": "2026-07-07",
-        "runs": 1,
-        "tasks": 27,
-        "completed": 25,
+        "runs": 4,
+        "tasks": 108,
+        "completed": 104,
         "failed": 0,
-        "aborted": 2,
-        "medianQueueDuration": 6,
-        "p90QueueDuration": 20,
-        "p99QueueDuration": 284,
+        "aborted": 4,
+        "medianQueueDuration": 18,
+        "p90QueueDuration": 40,
+        "p99QueueDuration": 345,
         "medianExecutionDuration": 891,
-        "p90ExecutionDuration": 1870,
-        "p99ExecutionDuration": 3040,
+        "p90ExecutionDuration": 2901,
+        "p99ExecutionDuration": 3625,
         "wastedRunnerDuration": 6081
       }
     ],
@@ -5285,17 +5285,17 @@
       },
       {
         "period": "2026-W28",
-        "runs": 37,
-        "tasks": 987,
-        "completed": 922,
+        "runs": 40,
+        "tasks": 1068,
+        "completed": 1001,
         "failed": 1,
-        "aborted": 64,
+        "aborted": 66,
         "medianQueueDuration": 7,
-        "p90QueueDuration": 202,
+        "p90QueueDuration": 159,
         "p99QueueDuration": 1377,
-        "medianExecutionDuration": 960,
-        "p90ExecutionDuration": 2794,
-        "p99ExecutionDuration": 3868,
+        "medianExecutionDuration": 958,
+        "p90ExecutionDuration": 2805,
+        "p99ExecutionDuration": 3854,
         "wastedRunnerDuration": 50585
       }
     ],
@@ -5452,17 +5452,17 @@
       },
       {
         "period": "2026-07",
-        "runs": 140,
-        "tasks": 3724,
-        "completed": 3374,
+        "runs": 143,
+        "tasks": 3805,
+        "completed": 3453,
         "failed": 55,
-        "aborted": 295,
+        "aborted": 297,
         "medianQueueDuration": 7,
         "p90QueueDuration": 233,
         "p99QueueDuration": 3303,
         "medianExecutionDuration": 909,
-        "p90ExecutionDuration": 2782,
-        "p99ExecutionDuration": 3840,
+        "p90ExecutionDuration": 2783,
+        "p99ExecutionDuration": 3839,
         "wastedRunnerDuration": 169826
       }
     ]
@@ -5470,43 +5470,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 8582
+      "count": 8585
     },
     {
       "name": "macOS native, fuzz",
-      "count": 7891
+      "count": 7894
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 7578
+      "count": 7581
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 7574
+      "count": 7577
     },
     {
       "name": "MSan, fuzz",
-      "count": 7189
+      "count": 7192
     },
     {
       "name": "previous releases",
-      "count": 6993
+      "count": 6996
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 6979
+      "count": 6982
     },
     {
       "name": "macOS native",
-      "count": 6880
+      "count": 6883
     },
     {
       "name": "No wallet",
-      "count": 6776
+      "count": 6779
     },
     {
       "name": "MSan",
-      "count": 6772
+      "count": 6775
     }
   ],
   "topJobsByFailures": [
@@ -5565,12 +5565,12 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 2998,
-      "samples": 7189
+      "samples": 7192
     },
     {
       "name": "Windows native, VS",
       "medianDuration": 2713,
-      "samples": 4228
+      "samples": 4231
     },
     {
       "name": "Windows native, VS 2022",
@@ -5589,8 +5589,8 @@
     },
     {
       "name": "Windows native, fuzz, VS",
-      "medianDuration": 2421,
-      "samples": 4228
+      "medianDuration": 2422,
+      "samples": 4231
     },
     {
       "name": "Win64 native fuzz, VS 2022",
@@ -5606,8 +5606,8 @@
   "topBranches": [
     {
       "name": "master",
-      "count": 24091,
-      "duration": 32186823
+      "count": 24118,
+      "duration": 32216770
     },
     {
       "name": "threaded-inputs",
@@ -5656,9 +5656,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 127.77267156862744,
+    "averageCount": 127.74402939375383,
     "medianCount": 58,
-    "averageDuration": 147489.85845588235,
+    "averageDuration": 147454.92406613595,
     "medianDuration": 68902
   }
 }

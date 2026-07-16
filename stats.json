@@ -1,11 +1,11 @@
 {
-  "generatedFromTasks": 217615,
+  "generatedFromTasks": 217643,
   "totals": {
-    "runs": 9080,
-    "tasks": 217615,
-    "completed": 181642,
+    "runs": 9081,
+    "tasks": 217643,
+    "completed": 181669,
     "failed": 9114,
-    "aborted": 26859,
+    "aborted": 26860,
     "medianQueueDuration": 28,
     "p90QueueDuration": 1293,
     "p99QueueDuration": 26504,
@@ -4743,17 +4743,17 @@
       },
       {
         "period": "2026-07-16",
-        "runs": 20,
-        "tasks": 559,
-        "completed": 546,
+        "runs": 21,
+        "tasks": 587,
+        "completed": 573,
         "failed": 8,
-        "aborted": 5,
-        "medianQueueDuration": 10,
-        "p90QueueDuration": 112,
+        "aborted": 6,
+        "medianQueueDuration": 9,
+        "p90QueueDuration": 111,
         "p99QueueDuration": 1356,
-        "medianExecutionDuration": 1224,
+        "medianExecutionDuration": 1219,
         "p90ExecutionDuration": 3007,
-        "p99ExecutionDuration": 5194,
+        "p99ExecutionDuration": 5250,
         "wastedRunnerDuration": 15255
       }
     ],
@@ -5435,17 +5435,17 @@
       },
       {
         "period": "2026-W29",
-        "runs": 147,
-        "tasks": 4065,
-        "completed": 3508,
+        "runs": 148,
+        "tasks": 4093,
+        "completed": 3535,
         "failed": 331,
-        "aborted": 226,
+        "aborted": 227,
         "medianQueueDuration": 21,
-        "p90QueueDuration": 327,
+        "p90QueueDuration": 318,
         "p99QueueDuration": 2497,
-        "medianExecutionDuration": 967,
+        "medianExecutionDuration": 971,
         "p90ExecutionDuration": 2585,
-        "p99ExecutionDuration": 4342,
+        "p99ExecutionDuration": 4362,
         "wastedRunnerDuration": 310442
       }
     ],
@@ -5602,17 +5602,17 @@
       },
       {
         "period": "2026-07",
-        "runs": 475,
-        "tasks": 12814,
-        "completed": 11266,
+        "runs": 476,
+        "tasks": 12842,
+        "completed": 11293,
         "failed": 612,
-        "aborted": 936,
+        "aborted": 937,
         "medianQueueDuration": 17,
-        "p90QueueDuration": 268,
+        "p90QueueDuration": 267,
         "p99QueueDuration": 2671,
         "medianExecutionDuration": 942,
-        "p90ExecutionDuration": 2752,
-        "p99ExecutionDuration": 3949,
+        "p90ExecutionDuration": 2753,
+        "p99ExecutionDuration": 3966,
         "wastedRunnerDuration": 839903
       }
     ]
@@ -5620,43 +5620,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 8914
+      "count": 8915
     },
     {
       "name": "macOS native, fuzz",
-      "count": 8221
+      "count": 8222
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 7907
+      "count": 7908
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 7903
+      "count": 7904
     },
     {
       "name": "MSan, fuzz",
-      "count": 7518
+      "count": 7519
     },
     {
       "name": "previous releases",
-      "count": 7322
+      "count": 7323
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 7308
+      "count": 7309
     },
     {
       "name": "macOS native",
-      "count": 7210
+      "count": 7211
     },
     {
       "name": "No wallet",
-      "count": 7105
+      "count": 7106
     },
     {
       "name": "MSan",
-      "count": 7101
+      "count": 7102
     }
   ],
   "topJobsByFailures": [
@@ -5715,12 +5715,12 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 3022,
-      "samples": 7518
+      "samples": 7519
     },
     {
       "name": "Windows native, VS",
       "medianDuration": 2724,
-      "samples": 4558
+      "samples": 4559
     },
     {
       "name": "Windows native, VS 2022",
@@ -5734,8 +5734,8 @@
     },
     {
       "name": "Windows native, fuzz, VS",
-      "medianDuration": 2458,
-      "samples": 4558
+      "medianDuration": 2459,
+      "samples": 4559
     },
     {
       "name": "Windows native, MSVC",
@@ -5806,9 +5806,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 129.60988683740322,
-    "medianCount": 58,
-    "averageDuration": 149438.7808219178,
-    "medianDuration": 68153
+    "averageCount": 129.54940476190475,
+    "medianCount": 57,
+    "averageDuration": 149373.88273809524,
+    "medianDuration": 68060
   }
 }

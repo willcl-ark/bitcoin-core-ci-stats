@@ -1,11 +1,11 @@
 {
-  "generatedFromTasks": 222809,
+  "generatedFromTasks": 222893,
   "totals": {
-    "runs": 9269,
-    "tasks": 222809,
-    "completed": 186205,
+    "runs": 9272,
+    "tasks": 222893,
+    "completed": 186288,
     "failed": 9255,
-    "aborted": 27349,
+    "aborted": 27350,
     "medianQueueDuration": 27,
     "p90QueueDuration": 1267,
     "p99QueueDuration": 24723,
@@ -4863,16 +4863,16 @@
       },
       {
         "period": "2026-07-24",
-        "runs": 7,
-        "tasks": 195,
-        "completed": 169,
+        "runs": 10,
+        "tasks": 279,
+        "completed": 252,
         "failed": 2,
-        "aborted": 24,
-        "medianQueueDuration": 7,
-        "p90QueueDuration": 27,
-        "p99QueueDuration": 808,
+        "aborted": 25,
+        "medianQueueDuration": 6,
+        "p90QueueDuration": 26,
+        "p99QueueDuration": 807,
         "medianExecutionDuration": 871,
-        "p90ExecutionDuration": 2170,
+        "p90ExecutionDuration": 2172,
         "p99ExecutionDuration": 3590,
         "wastedRunnerDuration": 15258
       }
@@ -5570,17 +5570,17 @@
       },
       {
         "period": "2026-W30",
-        "runs": 147,
-        "tasks": 4022,
-        "completed": 3560,
+        "runs": 150,
+        "tasks": 4106,
+        "completed": 3643,
         "failed": 91,
-        "aborted": 371,
+        "aborted": 372,
         "medianQueueDuration": 17,
-        "p90QueueDuration": 243,
-        "p99QueueDuration": 1379,
-        "medianExecutionDuration": 923,
+        "p90QueueDuration": 242,
+        "p99QueueDuration": 1360,
+        "medianExecutionDuration": 922,
         "p90ExecutionDuration": 2557,
-        "p99ExecutionDuration": 3912,
+        "p99ExecutionDuration": 3910,
         "wastedRunnerDuration": 189508
       }
     ],
@@ -5737,16 +5737,16 @@
       },
       {
         "period": "2026-07",
-        "runs": 664,
-        "tasks": 18008,
-        "completed": 15829,
+        "runs": 667,
+        "tasks": 18092,
+        "completed": 15912,
         "failed": 753,
-        "aborted": 1426,
+        "aborted": 1427,
         "medianQueueDuration": 16,
-        "p90QueueDuration": 254,
+        "p90QueueDuration": 253,
         "p99QueueDuration": 2380,
         "medianExecutionDuration": 939,
-        "p90ExecutionDuration": 2697,
+        "p90ExecutionDuration": 2696,
         "p99ExecutionDuration": 3964,
         "wastedRunnerDuration": 1120004
       }
@@ -5755,43 +5755,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 9100
+      "count": 9103
     },
     {
       "name": "macOS native, fuzz",
-      "count": 8409
+      "count": 8412
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 8092
+      "count": 8095
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 8088
+      "count": 8091
     },
     {
       "name": "MSan, fuzz",
-      "count": 7703
+      "count": 7706
     },
     {
       "name": "previous releases",
-      "count": 7507
+      "count": 7510
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 7493
+      "count": 7496
     },
     {
       "name": "macOS native",
-      "count": 7398
+      "count": 7401
     },
     {
       "name": "No wallet",
-      "count": 7290
+      "count": 7293
     },
     {
       "name": "MSan",
-      "count": 7286
+      "count": 7289
     }
   ],
   "topJobsByFailures": [
@@ -5850,12 +5850,12 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 3037,
-      "samples": 7703
+      "samples": 7706
     },
     {
       "name": "Windows native, VS",
       "medianDuration": 2729,
-      "samples": 4746
+      "samples": 4749
     },
     {
       "name": "Windows native, VS 2022",
@@ -5870,7 +5870,7 @@
     {
       "name": "Windows native, fuzz, VS",
       "medianDuration": 2474,
-      "samples": 4746
+      "samples": 4749
     },
     {
       "name": "Windows native, MSVC",
@@ -5900,14 +5900,14 @@
       "duration": 4077868
     },
     {
+      "name": "fully_static_bitcoind",
+      "count": 1168,
+      "duration": 1351204
+    },
+    {
       "name": "202512_sfl_opt",
       "count": 1164,
       "duration": 1667593
-    },
-    {
-      "name": "fully_static_bitcoind",
-      "count": 1140,
-      "duration": 1322741
     },
     {
       "name": "2025/11/miner-options",
@@ -5941,9 +5941,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 129.8420745920746,
+    "averageCount": 129.7398137369034,
     "medianCount": 57,
-    "averageDuration": 149532.74417249416,
-    "medianDuration": 67754
+    "averageDuration": 149406.81548311992,
+    "medianDuration": 67524
   }
 }

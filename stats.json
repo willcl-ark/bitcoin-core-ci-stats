@@ -1,11 +1,11 @@
 {
-  "generatedFromTasks": 223927,
+  "generatedFromTasks": 223983,
   "totals": {
-    "runs": 9309,
-    "tasks": 223927,
-    "completed": 187183,
+    "runs": 9311,
+    "tasks": 223983,
+    "completed": 187238,
     "failed": 9297,
-    "aborted": 27447,
+    "aborted": 27448,
     "medianQueueDuration": 27,
     "p90QueueDuration": 1264,
     "p99QueueDuration": 24335,
@@ -4890,6 +4890,21 @@
         "p90ExecutionDuration": 2258,
         "p99ExecutionDuration": 3602,
         "wastedRunnerDuration": 18301
+      },
+      {
+        "period": "2026-07-26",
+        "runs": 2,
+        "tasks": 56,
+        "completed": 55,
+        "failed": 0,
+        "aborted": 1,
+        "medianQueueDuration": 6,
+        "p90QueueDuration": 22,
+        "p99QueueDuration": 537,
+        "medianExecutionDuration": 880,
+        "p90ExecutionDuration": 3040,
+        "p99ExecutionDuration": 3448,
+        "wastedRunnerDuration": 0
       }
     ],
     "weekly": [
@@ -5585,16 +5600,16 @@
       },
       {
         "period": "2026-W30",
-        "runs": 187,
-        "tasks": 5140,
-        "completed": 4538,
+        "runs": 189,
+        "tasks": 5196,
+        "completed": 4593,
         "failed": 133,
-        "aborted": 469,
+        "aborted": 470,
         "medianQueueDuration": 16,
-        "p90QueueDuration": 244,
+        "p90QueueDuration": 243,
         "p99QueueDuration": 1624,
         "medianExecutionDuration": 939,
-        "p90ExecutionDuration": 2467,
+        "p90ExecutionDuration": 2472,
         "p99ExecutionDuration": 3895,
         "wastedRunnerDuration": 279183
       }
@@ -5752,17 +5767,17 @@
       },
       {
         "period": "2026-07",
-        "runs": 704,
-        "tasks": 19126,
-        "completed": 16807,
+        "runs": 706,
+        "tasks": 19182,
+        "completed": 16862,
         "failed": 795,
-        "aborted": 1524,
+        "aborted": 1525,
         "medianQueueDuration": 16,
-        "p90QueueDuration": 254,
+        "p90QueueDuration": 253,
         "p99QueueDuration": 2500,
         "medianExecutionDuration": 942,
-        "p90ExecutionDuration": 2658,
-        "p99ExecutionDuration": 3949,
+        "p90ExecutionDuration": 2662,
+        "p99ExecutionDuration": 3950,
         "wastedRunnerDuration": 1209679
       }
     ]
@@ -5770,43 +5785,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 9140
+      "count": 9142
     },
     {
       "name": "macOS native, fuzz",
-      "count": 8449
+      "count": 8451
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 8132
+      "count": 8134
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 8128
+      "count": 8130
     },
     {
       "name": "MSan, fuzz",
-      "count": 7743
+      "count": 7745
     },
     {
       "name": "previous releases",
-      "count": 7547
+      "count": 7549
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 7533
+      "count": 7535
     },
     {
       "name": "macOS native",
-      "count": 7438
+      "count": 7440
     },
     {
       "name": "No wallet",
-      "count": 7330
+      "count": 7332
     },
     {
       "name": "MSan",
-      "count": 7326
+      "count": 7328
     }
   ],
   "topJobsByFailures": [
@@ -5865,12 +5880,12 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 3041,
-      "samples": 7743
+      "samples": 7745
     },
     {
       "name": "Windows native, VS",
       "medianDuration": 2729,
-      "samples": 4786
+      "samples": 4788
     },
     {
       "name": "Windows native, VS 2022",
@@ -5885,7 +5900,7 @@
     {
       "name": "Windows native, fuzz, VS",
       "medianDuration": 2477,
-      "samples": 4786
+      "samples": 4788
     },
     {
       "name": "Windows native, MSVC",
@@ -5956,9 +5971,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 129.88805104408354,
+    "averageCount": 129.84521739130435,
     "medianCount": 57,
-    "averageDuration": 149563.80104408352,
+    "averageDuration": 149512.71130434782,
     "medianDuration": 67524
   }
 }

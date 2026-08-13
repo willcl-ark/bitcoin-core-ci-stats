@@ -1,11 +1,11 @@
 {
-  "generatedFromTasks": 238246,
+  "generatedFromTasks": 238274,
   "totals": {
-    "runs": 9830,
-    "tasks": 238246,
-    "completed": 199616,
+    "runs": 9831,
+    "tasks": 238274,
+    "completed": 199643,
     "failed": 9776,
-    "aborted": 28854,
+    "aborted": 28855,
     "medianQueueDuration": 26,
     "p90QueueDuration": 1207,
     "p99QueueDuration": 20475,
@@ -5163,16 +5163,16 @@
       },
       {
         "period": "2026-08-13",
-        "runs": 8,
-        "tasks": 224,
-        "completed": 193,
+        "runs": 9,
+        "tasks": 252,
+        "completed": 220,
         "failed": 24,
-        "aborted": 7,
+        "aborted": 8,
         "medianQueueDuration": 6,
-        "p90QueueDuration": 23,
+        "p90QueueDuration": 28,
         "p99QueueDuration": 934,
-        "medianExecutionDuration": 908,
-        "p90ExecutionDuration": 2534,
+        "medianExecutionDuration": 897,
+        "p90ExecutionDuration": 2518,
         "p99ExecutionDuration": 4826,
         "wastedRunnerDuration": 17546
       }
@@ -5915,16 +5915,16 @@
       },
       {
         "period": "2026-W33",
-        "runs": 118,
-        "tasks": 3288,
-        "completed": 2862,
+        "runs": 119,
+        "tasks": 3316,
+        "completed": 2889,
         "failed": 153,
-        "aborted": 273,
+        "aborted": 274,
         "medianQueueDuration": 18,
         "p90QueueDuration": 82,
-        "p99QueueDuration": 1049,
-        "medianExecutionDuration": 909,
-        "p90ExecutionDuration": 2454,
+        "p99QueueDuration": 1045,
+        "medianExecutionDuration": 908,
+        "p90ExecutionDuration": 2452,
         "p99ExecutionDuration": 5025,
         "wastedRunnerDuration": 219807
       }
@@ -6097,13 +6097,13 @@
       },
       {
         "period": "2026-08",
-        "runs": 381,
-        "tasks": 10412,
-        "completed": 9094,
+        "runs": 382,
+        "tasks": 10440,
+        "completed": 9121,
         "failed": 369,
-        "aborted": 949,
+        "aborted": 950,
         "medianQueueDuration": 21,
-        "p90QueueDuration": 282,
+        "p90QueueDuration": 280,
         "p99QueueDuration": 3084,
         "medianExecutionDuration": 969,
         "p90ExecutionDuration": 2528,
@@ -6115,43 +6115,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 9659
+      "count": 9660
     },
     {
       "name": "macOS native, fuzz",
-      "count": 8966
+      "count": 8967
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 8649
+      "count": 8650
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 8645
+      "count": 8646
     },
     {
       "name": "MSan, fuzz",
-      "count": 8260
+      "count": 8261
     },
     {
       "name": "previous releases",
-      "count": 8064
+      "count": 8065
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 8050
+      "count": 8051
     },
     {
       "name": "macOS native",
-      "count": 7955
+      "count": 7956
     },
     {
       "name": "No wallet",
-      "count": 7847
+      "count": 7848
     },
     {
       "name": "MSan",
-      "count": 7843
+      "count": 7844
     }
   ],
   "topJobsByFailures": [
@@ -6210,12 +6210,12 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 3079,
-      "samples": 8260
+      "samples": 8261
     },
     {
       "name": "Windows native, VS",
       "medianDuration": 2749,
-      "samples": 5301
+      "samples": 5302
     },
     {
       "name": "Windows native, VS 2022",
@@ -6225,7 +6225,7 @@
     {
       "name": "Windows native, fuzz, VS",
       "medianDuration": 2526,
-      "samples": 5301
+      "samples": 5302
     },
     {
       "name": "macOS 13 native, x86_64, no depends, sqlite only, gui",
@@ -6301,9 +6301,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 130.18907103825137,
+    "averageCount": 130.20437158469946,
     "medianCount": 57,
-    "averageDuration": 149617.1792349727,
-    "medianDuration": 67759
+    "averageDuration": 149630.84426229508,
+    "medianDuration": 67785
   }
 }

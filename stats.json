@@ -1,18 +1,18 @@
 {
-  "generatedFromTasks": 254439,
+  "generatedFromTasks": 254747,
   "totals": {
-    "runs": 10435,
-    "tasks": 254439,
-    "completed": 213044,
-    "failed": 10732,
-    "aborted": 30663,
+    "runs": 10446,
+    "tasks": 254747,
+    "completed": 213337,
+    "failed": 10733,
+    "aborted": 30677,
     "medianQueueDuration": 24,
     "p90QueueDuration": 1155,
-    "p99QueueDuration": 18673,
+    "p99QueueDuration": 18657,
     "medianExecutionDuration": 947,
-    "p90ExecutionDuration": 2570,
-    "p99ExecutionDuration": 4803,
-    "wastedRunnerDuration": 23537436
+    "p90ExecutionDuration": 2571,
+    "p99ExecutionDuration": 4805,
+    "wastedRunnerDuration": 23550430
   },
   "series": {
     "daily": [
@@ -5448,18 +5448,18 @@
       },
       {
         "period": "2026-09-01",
-        "runs": 21,
-        "tasks": 584,
-        "completed": 469,
-        "failed": 31,
-        "aborted": 84,
-        "medianQueueDuration": 22,
-        "p90QueueDuration": 1373,
-        "p99QueueDuration": 15052,
-        "medianExecutionDuration": 806,
-        "p90ExecutionDuration": 2541,
+        "runs": 32,
+        "tasks": 892,
+        "completed": 762,
+        "failed": 32,
+        "aborted": 98,
+        "medianQueueDuration": 8,
+        "p90QueueDuration": 1059,
+        "p99QueueDuration": 11597,
+        "medianExecutionDuration": 930,
+        "p90ExecutionDuration": 2573,
         "p99ExecutionDuration": 5719,
-        "wastedRunnerDuration": 62364
+        "wastedRunnerDuration": 75358
       }
     ],
     "weekly": [
@@ -6245,18 +6245,18 @@
       },
       {
         "period": "2026-W36",
-        "runs": 55,
-        "tasks": 1529,
-        "completed": 1239,
-        "failed": 39,
-        "aborted": 251,
-        "medianQueueDuration": 17,
-        "p90QueueDuration": 300,
-        "p99QueueDuration": 11555,
-        "medianExecutionDuration": 842,
-        "p90ExecutionDuration": 2611,
+        "runs": 66,
+        "tasks": 1837,
+        "completed": 1532,
+        "failed": 40,
+        "aborted": 265,
+        "medianQueueDuration": 8,
+        "p90QueueDuration": 302,
+        "p99QueueDuration": 11553,
+        "medianExecutionDuration": 903,
+        "p90ExecutionDuration": 2615,
         "p99ExecutionDuration": 5819,
-        "wastedRunnerDuration": 134901
+        "wastedRunnerDuration": 147895
       }
     ],
     "monthly": [
@@ -6442,61 +6442,61 @@
       },
       {
         "period": "2026-09",
-        "runs": 21,
-        "tasks": 584,
-        "completed": 469,
-        "failed": 31,
-        "aborted": 84,
-        "medianQueueDuration": 22,
-        "p90QueueDuration": 1373,
-        "p99QueueDuration": 15052,
-        "medianExecutionDuration": 806,
-        "p90ExecutionDuration": 2541,
+        "runs": 32,
+        "tasks": 892,
+        "completed": 762,
+        "failed": 32,
+        "aborted": 98,
+        "medianQueueDuration": 8,
+        "p90QueueDuration": 1059,
+        "p99QueueDuration": 11597,
+        "medianExecutionDuration": 930,
+        "p90ExecutionDuration": 2573,
         "p99ExecutionDuration": 5719,
-        "wastedRunnerDuration": 62364
+        "wastedRunnerDuration": 75358
       }
     ]
   },
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 10239
+      "count": 10250
     },
     {
       "name": "macOS native, fuzz",
-      "count": 9545
+      "count": 9556
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 9228
+      "count": 9239
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 9224
+      "count": 9235
     },
     {
       "name": "MSan, fuzz",
-      "count": 8839
+      "count": 8850
     },
     {
       "name": "previous releases",
-      "count": 8643
+      "count": 8654
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 8629
+      "count": 8640
     },
     {
       "name": "macOS native",
-      "count": 8534
+      "count": 8545
     },
     {
       "name": "No wallet",
-      "count": 8426
+      "count": 8437
     },
     {
       "name": "MSan",
-      "count": 8422
+      "count": 8433
     }
   ],
   "topJobsByFailures": [
@@ -6506,7 +6506,7 @@
     },
     {
       "name": "Alpine (musl)",
-      "count": 539
+      "count": 540
     },
     {
       "name": "TSan",
@@ -6549,8 +6549,8 @@
     },
     {
       "name": "MSan, fuzz",
-      "medianDuration": 3127,
-      "samples": 8839
+      "medianDuration": 3128,
+      "samples": 8850
     },
     {
       "name": "Valgrind, fuzz",
@@ -6560,12 +6560,12 @@
     {
       "name": "Windows native, VS",
       "medianDuration": 2768,
-      "samples": 5880
+      "samples": 5891
     },
     {
       "name": "Windows native, fuzz, VS",
-      "medianDuration": 2578,
-      "samples": 5880
+      "medianDuration": 2582,
+      "samples": 5891
     },
     {
       "name": "Windows native, VS 2022",
@@ -6646,9 +6646,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 130.34784836065575,
-    "medianCount": 56,
-    "averageDuration": 149641.84375,
-    "medianDuration": 66857
+    "averageCount": 130.50563524590163,
+    "medianCount": 57,
+    "averageDuration": 149831.8155737705,
+    "medianDuration": 66933
   }
 }

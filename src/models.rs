@@ -192,11 +192,23 @@ pub struct Stats {
     pub generated_from_tasks: usize,
     pub totals: StatsTotals,
     pub series: StatsSeries,
+    pub job_stats: Vec<JobStats>,
     pub top_jobs_by_tasks: Vec<NamedCount>,
     pub top_jobs_by_failures: Vec<NamedCount>,
     pub slowest_jobs: Vec<NamedDuration>,
     pub top_branches: Vec<BranchStats>,
     pub branch_summary: BranchSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobStats {
+    pub name: String,
+    pub runs: usize,
+    pub tasks: usize,
+    pub failures: usize,
+    pub failure_rate: f64,
+    pub average_runtime: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -284,6 +296,25 @@ struct BucketAccumulator {
     wasted_runner_duration: i64,
 }
 
+#[derive(Default)]
+struct JobStatsAccumulator {
+    runs: BTreeSet<u64>,
+    tasks: usize,
+    failures: usize,
+    total_runtime: i64,
+}
+
+impl JobStatsAccumulator {
+    fn add_task(&mut self, task: &Task) {
+        self.runs.insert(task.build.id);
+        self.tasks += 1;
+        if task.status == TaskStatus::Failed {
+            self.failures += 1;
+        }
+        self.total_runtime += task.duration.max(0);
+    }
+}
+
 impl BucketAccumulator {
     fn add_task(&mut self, task: &Task) {
         let queue_duration = (task.executing_timestamp - task.creation_timestamp).max(0);
@@ -333,6 +364,7 @@ impl From<&[Task]> for Stats {
         let mut job_counts = HashMap::new();
         let mut job_failures = HashMap::new();
         let mut job_durations: HashMap<String, Vec<i64>> = HashMap::new();
+        let mut job_stat_accumulators = HashMap::<String, JobStatsAccumulator>::new();
         let mut branch_counts = HashMap::new();
         let mut branch_durations = HashMap::new();
 
@@ -365,6 +397,10 @@ impl From<&[Task]> for Stats {
                 .entry(task.name.clone())
                 .or_default()
                 .push(task.duration);
+            job_stat_accumulators
+                .entry(task.name.clone())
+                .or_default()
+                .add_task(task);
             *branch_counts.entry(task.build.branch.clone()).or_insert(0) += 1;
             *branch_durations
                 .entry(task.build.branch.clone())
@@ -394,6 +430,7 @@ impl From<&[Task]> for Stats {
                 weekly: buckets_from_map(weekly),
                 monthly: buckets_from_map(monthly),
             },
+            job_stats: job_stats(job_stat_accumulators),
             top_jobs_by_tasks: top_counts(job_counts, 10),
             top_jobs_by_failures: top_counts(job_failures, 10),
             slowest_jobs: slowest_jobs(job_durations, 10),
@@ -401,6 +438,27 @@ impl From<&[Task]> for Stats {
             top_branches: top_branches(branch_counts, branch_durations, 10),
         }
     }
+}
+
+fn job_stats(stats: HashMap<String, JobStatsAccumulator>) -> Vec<JobStats> {
+    let mut stats: Vec<_> = stats
+        .into_iter()
+        .map(|(name, stats)| JobStats {
+            name,
+            runs: stats.runs.len(),
+            tasks: stats.tasks,
+            failures: stats.failures,
+            failure_rate: stats.failures as f64 * 100.0 / stats.tasks as f64,
+            average_runtime: stats.total_runtime as f64 / stats.tasks as f64,
+        })
+        .collect();
+    stats.sort_by(|a, b| {
+        b.failures
+            .cmp(&a.failures)
+            .then_with(|| b.runs.cmp(&a.runs))
+            .then_with(|| a.name.cmp(&b.name))
+    });
+    stats
 }
 
 fn buckets_from_map(map: BTreeMap<String, BucketAccumulator>) -> Vec<StatsBucket> {

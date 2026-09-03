@@ -59,6 +59,28 @@
     </div>
   </div>
 
+  <div class="mt-5">
+    <h2>Job statistics</h2>
+    <p class="text-secondary">Failure counts and rates are based on task outcomes. Runs are distinct workflow runs.</p>
+    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+      <label class="form-label mb-0" for="job-min-runs">Minimum runs</label>
+      <input type="number" class="form-control form-control-sm w-auto" id="job-min-runs" min="0" value="1000">
+      <label class="form-label mb-0" for="job-sort">Sort by</label>
+      <select class="form-select form-select-sm w-auto" id="job-sort">
+        <option value="failures-desc">failures, highest first</option>
+        <option value="failures-asc">failures, lowest first</option>
+        <option value="failureRate-desc">failure rate, highest first</option>
+        <option value="failureRate-asc">failure rate, lowest first</option>
+        <option value="runs-desc">runs, highest first</option>
+        <option value="runs-asc">runs, lowest first</option>
+        <option value="runtime-desc">average runtime, longest first</option>
+        <option value="runtime-asc">average runtime, shortest first</option>
+        <option value="name-asc">job name, A-Z</option>
+      </select>
+    </div>
+    <div id="job-stats"></div>
+  </div>
+
   <div class="row g-4 mt-2">
     <div class="col-lg-6">
       <h2>Top jobs by task count</h2>
@@ -85,6 +107,10 @@
   const percent = new Intl.NumberFormat(undefined, {
     maximumFractionDigits: 1,
   });
+  const jobPercent = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 2,
+  });
+  let currentStats;
 
   function formatDuration(value) {
     const hours = Math.floor(value / 3600);
@@ -146,6 +172,54 @@
         </table>
       </div>`;
   }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function renderJobStats(stats) {
+    const rows = (stats.jobStats || []).filter((row) => row.runs >= minimumJobRuns());
+    const [sortKey, sortDirection] = document.getElementById("job-sort").value.split("-");
+    const direction = sortDirection === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      const aValue = sortKey === "name" ? a.name : sortKey === "runtime" ? a.averageRuntime : a[sortKey];
+      const bValue = sortKey === "name" ? b.name : sortKey === "runtime" ? b.averageRuntime : b[sortKey];
+      const comparison = typeof aValue === "string"
+        ? aValue.localeCompare(bValue)
+        : aValue - bValue;
+      return direction * comparison || b.failures - a.failures || b.runs - a.runs;
+    });
+
+    const body = rows.map((row) => `
+      <tr>
+        <td>${escapeHtml(row.name)}</td>
+        <td>${seconds.format(row.failures)}</td>
+        <td>${jobPercent.format(row.failureRate)}%</td>
+        <td>${seconds.format(row.runs)}</td>
+        <td>${seconds.format(row.tasks)}</td>
+        <td>${formatDuration(row.averageRuntime)}</td>
+      </tr>`).join("");
+    document.getElementById("job-stats").innerHTML = `
+      <p class="small text-secondary">Showing ${rows.length} of ${(stats.jobStats || []).length} jobs.</p>
+      <div class="table-responsive">
+        <table class="table table-sm table-striped">
+          <thead><tr><th scope="col">job</th><th scope="col">failures</th><th scope="col">failure rate</th><th scope="col">runs</th><th scope="col">tasks</th><th scope="col">average runtime</th></tr></thead>
+          <tbody>${body || '<tr><td colspan="6">No jobs match this filter.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function minimumJobRuns() {
+    return Math.max(0, Number.parseInt(document.getElementById("job-min-runs").value, 10) || 0);
+  }
+
+  document.getElementById("job-min-runs").addEventListener("input", () => renderJobStats(currentStats));
+  document.getElementById("job-sort").addEventListener("change", () => renderJobStats(currentStats));
 
   function branchRowsWithMedian(stats) {
     return [{
@@ -465,8 +539,10 @@
       return response.json();
     })
     .then((stats) => {
+      currentStats = stats;
       renderSummary(stats);
       renderCharts(stats);
+      renderJobStats(stats);
       renderTable("top-jobs", [
         { label: "job", value: (row) => row.name },
         { label: "tasks", value: (row) => seconds.format(row.count) },

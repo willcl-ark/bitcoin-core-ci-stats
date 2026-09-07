@@ -1,9 +1,9 @@
 {
-  "generatedFromTasks": 258423,
+  "generatedFromTasks": 258451,
   "totals": {
-    "runs": 10578,
-    "tasks": 258423,
-    "completed": 216491,
+    "runs": 10579,
+    "tasks": 258451,
+    "completed": 216519,
     "failed": 10822,
     "aborted": 31110,
     "medianQueueDuration": 24,
@@ -5535,6 +5535,21 @@
         "p90ExecutionDuration": 2352,
         "p99ExecutionDuration": 3801,
         "wastedRunnerDuration": 10021
+      },
+      {
+        "period": "2026-09-07",
+        "runs": 1,
+        "tasks": 28,
+        "completed": 28,
+        "failed": 0,
+        "aborted": 0,
+        "medianQueueDuration": 7,
+        "p90QueueDuration": 54,
+        "p99QueueDuration": 481,
+        "medianExecutionDuration": 827,
+        "p90ExecutionDuration": 1913,
+        "p99ExecutionDuration": 3138,
+        "wastedRunnerDuration": 0
       }
     ],
     "weekly": [
@@ -6332,6 +6347,21 @@
         "p90ExecutionDuration": 2542,
         "p99ExecutionDuration": 5216,
         "wastedRunnerDuration": 402750
+      },
+      {
+        "period": "2026-W37",
+        "runs": 1,
+        "tasks": 28,
+        "completed": 28,
+        "failed": 0,
+        "aborted": 0,
+        "medianQueueDuration": 7,
+        "p90QueueDuration": 54,
+        "p99QueueDuration": 481,
+        "medianExecutionDuration": 827,
+        "p90ExecutionDuration": 1913,
+        "p99ExecutionDuration": 3138,
+        "wastedRunnerDuration": 0
       }
     ],
     "monthly": [
@@ -6517,13 +6547,13 @@
       },
       {
         "period": "2026-09",
-        "runs": 164,
-        "tasks": 4568,
-        "completed": 3916,
+        "runs": 165,
+        "tasks": 4596,
+        "completed": 3944,
         "failed": 121,
         "aborted": 531,
         "medianQueueDuration": 7,
-        "p90QueueDuration": 149,
+        "p90QueueDuration": 147,
         "p99QueueDuration": 2525,
         "medianExecutionDuration": 907,
         "p90ExecutionDuration": 2506,
@@ -6535,179 +6565,179 @@
   "jobStats": [
     {
       "name": "previous releases",
-      "runs": 8770,
-      "tasks": 8786,
+      "runs": 8771,
+      "tasks": 8787,
       "failures": 554,
-      "failureRate": 6.30548600045527,
-      "averageRuntime": 724.3760528112907
+      "failureRate": 6.304768407875271,
+      "averageRuntime": 724.3564356435644
     },
     {
       "name": "Alpine (musl)",
-      "runs": 8546,
-      "tasks": 8562,
+      "runs": 8547,
+      "tasks": 8563,
       "failures": 545,
-      "failureRate": 6.365335202055594,
-      "averageRuntime": 1049.5060733473488
+      "failureRate": 6.364591848651173,
+      "averageRuntime": 1049.505547121336
     },
     {
       "name": "TSan",
-      "runs": 8548,
-      "tasks": 8564,
+      "runs": 8549,
+      "tasks": 8565,
       "failures": 539,
-      "failureRate": 6.2937879495562825,
-      "averageRuntime": 1080.7380896777206
+      "failureRate": 6.293053123175715,
+      "averageRuntime": 1080.7318155283128
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "runs": 8756,
-      "tasks": 8772,
+      "runs": 8757,
+      "tasks": 8773,
       "failures": 519,
-      "failureRate": 5.916552667578659,
-      "averageRuntime": 1647.0660054719563
+      "failureRate": 5.915878262851932,
+      "averageRuntime": 1647.0963182491737
     },
     {
       "name": "tidy",
-      "runs": 10366,
-      "tasks": 10382,
+      "runs": 10367,
+      "tasks": 10383,
       "failures": 516,
-      "failureRate": 4.970140628010017,
-      "averageRuntime": 751.7680601040262
+      "failureRate": 4.969661947414042,
+      "averageRuntime": 751.7545988635269
     },
     {
       "name": "MSan",
-      "runs": 8549,
-      "tasks": 8565,
+      "runs": 8550,
+      "tasks": 8566,
       "failures": 508,
-      "failureRate": 5.9311150029188555,
-      "averageRuntime": 1038.1678925861063
+      "failureRate": 5.930422600980621,
+      "averageRuntime": 1038.1491944898435
     },
     {
       "name": "i686, no IPC",
-      "runs": 8547,
-      "tasks": 8563,
+      "runs": 8548,
+      "tasks": 8564,
       "failures": 502,
-      "failureRate": 5.862431390867687,
-      "averageRuntime": 857.0140137802172
+      "failureRate": 5.861746847267632,
+      "averageRuntime": 857.0105091078935
     },
     {
       "name": "macOS native",
-      "runs": 8660,
-      "tasks": 8677,
+      "runs": 8661,
+      "tasks": 8678,
       "failures": 465,
-      "failureRate": 5.358995044370174,
-      "averageRuntime": 1666.9864008297798
+      "failureRate": 5.358377506337866,
+      "averageRuntime": 1666.9770684489513
     },
     {
       "name": "32 bit ARM",
-      "runs": 8547,
-      "tasks": 8563,
+      "runs": 8548,
+      "tasks": 8564,
       "failures": 445,
-      "failureRate": 5.196776830550041,
-      "averageRuntime": 1278.1867336213943
+      "failureRate": 5.196170014012144,
+      "averageRuntime": 1278.1764362447454
     },
     {
       "name": "No wallet",
-      "runs": 8553,
-      "tasks": 8569,
+      "runs": 8554,
+      "tasks": 8570,
       "failures": 428,
-      "failureRate": 4.994748512078422,
-      "averageRuntime": 818.578363869763
+      "failureRate": 4.994165694282381,
+      "averageRuntime": 818.5948658109685
     },
     {
       "name": "test ancestor commits",
-      "runs": 5869,
-      "tasks": 5869,
+      "runs": 5870,
+      "tasks": 5870,
       "failures": 426,
-      "failureRate": 7.258476742204805,
-      "averageRuntime": 926.7868461407395
+      "failureRate": 7.257240204429301,
+      "averageRuntime": 926.7522998296422
     },
     {
       "name": "MSan, fuzz",
-      "runs": 8966,
-      "tasks": 8982,
+      "runs": 8967,
+      "tasks": 8983,
       "failures": 318,
-      "failureRate": 3.5404141616566465,
-      "averageRuntime": 2923.422066354932
+      "failureRate": 3.540020037849271,
+      "averageRuntime": 2923.5136368696426
     },
     {
       "name": "macOS-cross to x86_64",
-      "runs": 9351,
-      "tasks": 9367,
+      "runs": 9352,
+      "tasks": 9368,
       "failures": 313,
-      "failureRate": 3.3415180954414434,
-      "averageRuntime": 448.7716451371837
+      "failureRate": 3.3411614005123824,
+      "averageRuntime": 448.7462638770282
     },
     {
       "name": "macOS native, fuzz",
-      "runs": 9671,
-      "tasks": 9688,
+      "runs": 9672,
+      "tasks": 9689,
       "failures": 312,
-      "failureRate": 3.2204789430222958,
-      "averageRuntime": 875.6402766308836
+      "failureRate": 3.220146557952317,
+      "averageRuntime": 875.6279285788007
     },
     {
       "name": "macOS-cross to arm64",
-      "runs": 9355,
-      "tasks": 9371,
+      "runs": 9356,
+      "tasks": 9372,
       "failures": 309,
-      "failureRate": 3.2974068936079393,
-      "averageRuntime": 444.96489168711986
+      "failureRate": 3.297055057618438,
+      "averageRuntime": 444.9391805377721
     },
     {
       "name": "fuzzer,address,undefined,integer",
-      "runs": 8383,
-      "tasks": 8397,
+      "runs": 8384,
+      "tasks": 8398,
       "failures": 294,
-      "failureRate": 3.501250446588067,
-      "averageRuntime": 1678.343455996189
+      "failureRate": 3.500833531793284,
+      "averageRuntime": 1678.338056680162
     },
     {
       "name": "iwyu",
-      "runs": 7617,
-      "tasks": 7626,
+      "runs": 7618,
+      "tasks": 7627,
       "failures": 267,
-      "failureRate": 3.5011801730920533,
-      "averageRuntime": 766.5174403356937
+      "failureRate": 3.5007211223285695,
+      "averageRuntime": 766.5576242297102
     },
     {
       "name": "Windows native, VS",
-      "runs": 6023,
-      "tasks": 6023,
+      "runs": 6024,
+      "tasks": 6024,
       "failures": 263,
-      "failureRate": 4.366594720239084,
-      "averageRuntime": 2822.506890254026
+      "failureRate": 4.365869853917663,
+      "averageRuntime": 2822.559262948207
     },
     {
       "name": "Windows-cross to x86_64, ucrt",
-      "runs": 8177,
-      "tasks": 8191,
+      "runs": 8178,
+      "tasks": 8192,
       "failures": 231,
-      "failureRate": 2.8201684775973628,
-      "averageRuntime": 639.5447442314736
+      "failureRate": 2.81982421875,
+      "averageRuntime": 639.5089111328125
     },
     {
       "name": "Windows-cross to x86_64, msvcrt",
-      "runs": 8177,
-      "tasks": 8191,
+      "runs": 8178,
+      "tasks": 8192,
       "failures": 227,
-      "failureRate": 2.7713343914052007,
-      "averageRuntime": 634.610914418264
+      "failureRate": 2.77099609375,
+      "averageRuntime": 634.58544921875
     },
     {
       "name": "Windows, msvcrt, test cross-built",
-      "runs": 7257,
-      "tasks": 7269,
+      "runs": 7258,
+      "tasks": 7270,
       "failures": 223,
-      "failureRate": 3.06782225890769,
-      "averageRuntime": 1342.1634337598018
+      "failureRate": 3.0674002751031635,
+      "averageRuntime": 1342.160660247593
     },
     {
       "name": "Windows, ucrt, test cross-built",
-      "runs": 7257,
-      "tasks": 7269,
+      "runs": 7258,
+      "tasks": 7270,
       "failures": 222,
-      "failureRate": 3.0540652084193147,
-      "averageRuntime": 1342.184619617554
+      "failureRate": 3.0536451169188448,
+      "averageRuntime": 1342.1757909215955
     },
     {
       "name": "Windows native, VS 2022",
@@ -6719,19 +6749,19 @@
     },
     {
       "name": "FreeBSD Cross",
-      "runs": 4482,
-      "tasks": 4482,
+      "runs": 4483,
+      "tasks": 4483,
       "failures": 172,
-      "failureRate": 3.8375725122713074,
-      "averageRuntime": 487.6787148594378
+      "failureRate": 3.8367164844969888,
+      "averageRuntime": 487.610974793665
     },
     {
       "name": "Windows native, fuzz, VS",
-      "runs": 6023,
-      "tasks": 6023,
+      "runs": 6024,
+      "tasks": 6024,
       "failures": 169,
-      "failureRate": 2.805910675742985,
-      "averageRuntime": 2566.353976423709
+      "failureRate": 2.805444887118194,
+      "averageRuntime": 2566.437416998672
     },
     {
       "name": "Windows native, fuzz, VS 2022",
@@ -6815,19 +6845,19 @@
     },
     {
       "name": "OpenBSD Cross",
-      "runs": 1925,
-      "tasks": 1925,
+      "runs": 1926,
+      "tasks": 1926,
       "failures": 88,
-      "failureRate": 4.571428571428571,
-      "averageRuntime": 317.91064935064935
+      "failureRate": 4.569055036344756,
+      "averageRuntime": 317.80893042575286
     },
     {
       "name": "NetBSD Cross",
-      "runs": 1652,
-      "tasks": 1652,
+      "runs": 1653,
+      "tasks": 1653,
       "failures": 87,
-      "failureRate": 5.266343825665859,
-      "averageRuntime": 237.88438256658597
+      "failureRate": 5.2631578947368425,
+      "averageRuntime": 237.79370840895342
     },
     {
       "name": "test each commit",
@@ -6879,11 +6909,11 @@
     },
     {
       "name": "riscv32 bare metal, static libbitcoin_consensus",
-      "runs": 1771,
-      "tasks": 1771,
+      "runs": 1772,
+      "tasks": 1772,
       "failures": 35,
-      "failureRate": 1.976284584980237,
-      "averageRuntime": 115.64652738565782
+      "failureRate": 1.9751693002257336,
+      "averageRuntime": 115.61117381489842
     },
     {
       "name": "Alpine (musl), depends, gui",
@@ -6911,11 +6941,11 @@
     },
     {
       "name": "[meta] record frozen commit",
-      "runs": 7828,
-      "tasks": 7838,
+      "runs": 7829,
+      "tasks": 7839,
       "failures": 25,
-      "failureRate": 0.31895891809134985,
-      "averageRuntime": 13.180147996937995
+      "failureRate": 0.31891822936599057,
+      "averageRuntime": 13.18089041969639
     },
     {
       "name": "macOS 14 native, arm64, fuzz",
@@ -7353,43 +7383,43 @@
   "topJobsByTasks": [
     {
       "name": "tidy",
-      "count": 10382
+      "count": 10383
     },
     {
       "name": "macOS native, fuzz",
-      "count": 9688
+      "count": 9689
     },
     {
       "name": "macOS-cross to arm64",
-      "count": 9371
+      "count": 9372
     },
     {
       "name": "macOS-cross to x86_64",
-      "count": 9367
+      "count": 9368
     },
     {
       "name": "MSan, fuzz",
-      "count": 8982
+      "count": 8983
     },
     {
       "name": "previous releases",
-      "count": 8786
+      "count": 8787
     },
     {
       "name": "ASan + LSan + UBSan + integer",
-      "count": 8772
+      "count": 8773
     },
     {
       "name": "macOS native",
-      "count": 8677
+      "count": 8678
     },
     {
       "name": "No wallet",
-      "count": 8569
+      "count": 8570
     },
     {
       "name": "MSan",
-      "count": 8565
+      "count": 8566
     }
   ],
   "topJobsByFailures": [
@@ -7443,7 +7473,7 @@
     {
       "name": "MSan, fuzz",
       "medianDuration": 3140,
-      "samples": 8982
+      "samples": 8983
     },
     {
       "name": "Valgrind, fuzz",
@@ -7453,12 +7483,12 @@
     {
       "name": "Windows native, VS",
       "medianDuration": 2772,
-      "samples": 6023
+      "samples": 6024
     },
     {
       "name": "Windows native, fuzz, VS",
       "medianDuration": 2596,
-      "samples": 6023
+      "samples": 6024
     },
     {
       "name": "Windows native, VS 2022",
@@ -7539,9 +7569,9 @@
     }
   ],
   "branchSummary": {
-    "averageCount": 130.51666666666668,
+    "averageCount": 130.46491670873297,
     "medianCount": 56,
-    "averageDuration": 149674.30909090908,
+    "averageDuration": 149613.3841494195,
     "medianDuration": 66749
   }
 }

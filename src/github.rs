@@ -10,7 +10,7 @@ use tracing::{info, warn};
 use crate::constants::MAX_LOG_BYTES;
 use crate::errors::AppError;
 use crate::log_parser::parse_job_log;
-use crate::models::{Build, Task, TaskRuntimeStats, TestTiming};
+use crate::models::{Build, EXCLUDED_TEST_TIMING_JOB, Task, TaskRuntimeStats, TestTiming};
 
 struct TempFileGuard {
     path: PathBuf,
@@ -271,8 +271,11 @@ impl GitHubActionsFetcher {
         };
 
         let job_id = required_u64(job_value, "id")?;
-        let (log_status_code, commands, runtime_stats, test_timings) =
+        let (log_status_code, commands, runtime_stats, mut test_timings) =
             self.fetch_and_parse_job_log(job_id, job_completed_at).await;
+        if job_value["name"].as_str() == Some(EXCLUDED_TEST_TIMING_JOB) {
+            test_timings.clear();
+        }
 
         Ok(Task {
             id: job_id,

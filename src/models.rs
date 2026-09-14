@@ -76,6 +76,8 @@ pub struct Task {
     pub test_timings: Vec<TestTiming>,
 }
 
+pub const EXCLUDED_TEST_TIMING_JOB: &str = "test ancestor commits";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TestKind {

@@ -2,7 +2,7 @@ use chrono::{DateTime, Datelike, Duration, Utc};
 use serde::Serialize;
 use std::collections::{BTreeMap, HashMap};
 
-use crate::models::{Task, TestKind};
+use crate::models::{EXCLUDED_TEST_TIMING_JOB, Task, TestKind};
 
 const RECENT_DAYS: i64 = 7;
 const BASELINE_DAYS: i64 = 28;
@@ -79,7 +79,7 @@ fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
     let mut samples = HashMap::<TestKey, Samples>::new();
 
     for task in tasks {
-        if task.test_timings.is_empty() {
+        if task.test_timings.is_empty() || task.name == EXCLUDED_TEST_TIMING_JOB {
             continue;
         }
 
@@ -364,6 +364,19 @@ mod tests {
         assert_eq!(row.baseline_samples, 0);
         assert_eq!(row.baseline_median_ms, 0.0);
         assert_eq!(row.change_percent, 0.0);
+    }
+
+    #[test]
+    fn excludes_repeated_ancestor_test_job() {
+        let tasks = vec![task(
+            ANCHOR,
+            "test ancestor commits",
+            1000,
+            "Passed",
+            TaskStatus::Completed,
+        )];
+
+        assert!(TestTimingSummary::from_tasks(&tasks).rows.is_empty());
     }
 
     fn task(

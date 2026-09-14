@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use chrono::{Duration, Utc};
 use clap::Parser;
 use fetch_tasks_github::github::GitHubActionsFetcher;
-use fetch_tasks_github::models::Task;
+use fetch_tasks_github::models::{EXCLUDED_TEST_TIMING_JOB, Task};
 use octocrab::Octocrab;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -89,7 +89,10 @@ fn build_tasks_by_run(tasks: &[Task], selected_jobs: &HashSet<String>) -> HashMa
     let mut tasks_by_run: HashMap<u64, Vec<usize>> = HashMap::new();
 
     for (index, task) in tasks.iter().enumerate() {
-        if !task.test_timings.is_empty() || task.final_status_timestamp <= 0 {
+        if !task.test_timings.is_empty()
+            || task.final_status_timestamp <= 0
+            || task.name == EXCLUDED_TEST_TIMING_JOB
+        {
             continue;
         }
         if !selected_jobs.is_empty() && !selected_jobs.contains(&task.name) {

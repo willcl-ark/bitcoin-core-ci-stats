@@ -4,7 +4,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::models::{Task, TestKind};
 
-const WINDOW_DAYS: i64 = 28;
+const RECENT_DAYS: i64 = 7;
+const BASELINE_DAYS: i64 = 28;
 const TREND_WEEKS: i64 = 12;
 const MIN_RECENT_SAMPLES: usize = 3;
 const MIN_BASELINE_SAMPLES: usize = 3;
@@ -72,8 +73,8 @@ fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
 
     // Windows are anchored to the newest task in the archive so regenerated
     // files remain stable for historical snapshots.
-    let recent_start = anchor - Duration::days(WINDOW_DAYS);
-    let baseline_start = anchor - Duration::days(WINDOW_DAYS * 2);
+    let recent_start = anchor - Duration::days(RECENT_DAYS);
+    let baseline_start = recent_start - Duration::days(BASELINE_DAYS);
     let trend_start = anchor - Duration::weeks(TREND_WEEKS);
     let mut samples = HashMap::<TestKey, Samples>::new();
 
@@ -232,7 +233,7 @@ mod tests {
         let mut tasks = Vec::new();
         for duration_ms in [900, 1000, 1100] {
             tasks.push(task(
-                ANCHOR - 40 * DAY,
+                ANCHOR - 20 * DAY,
                 "job-a",
                 duration_ms,
                 "Passed",
@@ -241,7 +242,7 @@ mod tests {
         }
         for duration_ms in [1900, 2000, 2100] {
             tasks.push(task(
-                ANCHOR - 10 * DAY,
+                ANCHOR - 2 * DAY,
                 "job-a",
                 duration_ms,
                 "Passed",
@@ -249,14 +250,14 @@ mod tests {
             ));
         }
         tasks.push(task(
-            ANCHOR - 10 * DAY,
+            ANCHOR - 2 * DAY,
             "job-a",
             99_000,
             "Failed",
             TaskStatus::Completed,
         ));
         tasks.push(task(
-            ANCHOR - 10 * DAY,
+            ANCHOR - 2 * DAY,
             "job-a",
             2100,
             "✓ Passed",
@@ -289,35 +290,35 @@ mod tests {
     fn requires_enough_samples_in_both_windows() {
         let tasks = vec![
             task(
-                ANCHOR - 40 * DAY,
+                ANCHOR - 20 * DAY,
                 "job-a",
                 1000,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 39 * DAY,
+                ANCHOR - 19 * DAY,
                 "job-a",
                 1100,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 10 * DAY,
+                ANCHOR - 2 * DAY,
                 "job-a",
                 2000,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 9 * DAY,
+                ANCHOR - 1 * DAY,
                 "job-a",
                 2100,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 8 * DAY,
+                ANCHOR,
                 "job-a",
                 2200,
                 "Passed",
@@ -334,21 +335,21 @@ mod tests {
     fn includes_new_tests_after_three_recent_samples() {
         let tasks = vec![
             task(
-                ANCHOR - 10 * DAY,
+                ANCHOR - 2 * DAY,
                 "job-a",
                 2000,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 9 * DAY,
+                ANCHOR - 1 * DAY,
                 "job-a",
                 2100,
                 "Passed",
                 TaskStatus::Completed,
             ),
             task(
-                ANCHOR - 8 * DAY,
+                ANCHOR,
                 "job-a",
                 2200,
                 "Passed",

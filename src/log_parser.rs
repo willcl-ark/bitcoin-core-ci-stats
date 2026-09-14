@@ -38,7 +38,16 @@ fn functional_test_regex() -> &'static Regex {
     })
 }
 
+fn ansi_escape_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").expect("valid ANSI escape regex"))
+}
+
 fn parse_test_timing(line: &str) -> Option<TestTiming> {
+    let stripped = line
+        .contains('\x1b')
+        .then(|| ansi_escape_regex().replace_all(line, ""));
+    let line = stripped.as_deref().unwrap_or(line);
     if let Some(caps) = unit_test_regex().captures(line) {
         let duration_ms = (caps[3].parse::<f64>().ok()? * 1000.0).round() as u64;
         return Some(TestTiming {
@@ -201,9 +210,10 @@ mod tests {
 2026-09-14T00:01:52.0341414Z feature_bip68_sequence.py                            | ✓ Passed  | 27 s\n\
 2026-09-14T00:01:52.0341414Z feature_failed.py                                    | ✖ Failed  | 4 s\n\
 2026-09-13T23:44:01.5174361Z 221/376 Test #223: failed_unit ........   ***Failed    1.25 sec\n\
+2026-09-14T00:01:52.0341414Z \x1b[0m\x1b[0;32minterface_http.py\x1b[0m                       | ✓ Passed  | 12 s\n\
 2026-09-14T00:01:52.0848207Z ALL                                  | ✓ Passed  | 3661 s (accumulated)\n";
         let (_, _, _, timings) = parse_job_log(Cursor::new(log), 0).expect("parse test summaries");
-        assert_eq!(timings.len(), 6);
+        assert_eq!(timings.len(), 7);
         assert_eq!(timings[0].kind, TestKind::Unit);
         assert_eq!(
             timings[0].name,
@@ -224,6 +234,11 @@ mod tests {
                 .any(|timing| timing.name == "feature_failed.py"
                     && timing.status == "✖ Failed"
                     && timing.duration_ms == 4000)
+        );
+        assert!(
+            timings
+                .iter()
+                .any(|timing| timing.name == "interface_http.py" && timing.duration_ms == 12000)
         );
     }
 }

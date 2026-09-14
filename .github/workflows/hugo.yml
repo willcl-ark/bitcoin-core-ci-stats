@@ -59,6 +59,13 @@ jobs:
         run: |
           wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/graph.json
           mv graph.json www/static/graph.json
+      - name: download test-timings.json
+        run: |
+          if wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/test-timings.json; then
+            mv test-timings.json www/static/test-timings.json
+          else
+            echo '{"generatedAt":"","rows":[]}' > www/static/test-timings.json
+          fi
       - name: download stats.json
         run: |
           if wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/stats.json; then

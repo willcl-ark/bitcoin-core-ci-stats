@@ -1,0 +1,312 @@
+{{ define "main" }}
+
+<h1>{{ .Title }}</h1>
+
+<div id="test-timings-loading">Loading test timings...</div>
+
+<div id="test-timings" class="d-none">
+  <p class="text-secondary">
+    Per-test medians compare the last 28 days with the prior 28 days, grouped by job.
+    Rows need at least 3 samples, weekly trends cover 12 weeks, and new tests can be filtered as new/uncompared.
+    Removed tests age out of the rolling data. Functional timings are whole seconds; unit timings are often hundredths.
+  </p>
+
+  <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <div>
+      <label class="form-label mb-1" for="job-filter">Job</label>
+      <select class="form-select form-select-sm" id="job-filter">
+        <option value="">all jobs</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label mb-1" for="kind-filter">Kind</label>
+      <select class="form-select form-select-sm" id="kind-filter">
+        <option value="">unit and functional</option>
+        <option value="unit">unit</option>
+        <option value="functional">functional</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label mb-1" for="comparison-filter">Comparison</label>
+      <select class="form-select form-select-sm" id="comparison-filter">
+        <option value="">all</option>
+        <option value="comparable">comparable</option>
+        <option value="new">new/uncompared</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label mb-1" for="min-samples">Minimum samples</label>
+      <input type="number" class="form-control form-control-sm" id="min-samples" min="0" value="3">
+    </div>
+    <div class="flex-grow-1">
+      <label class="form-label mb-1" for="test-filter">Test</label>
+      <input type="search" class="form-control form-control-sm" id="test-filter" placeholder="filter tests">
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-xl-7">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+        <span id="test-timings-summary" class="text-secondary"></span>
+        <select class="form-select form-select-sm w-auto ms-xl-auto" id="trend-select" aria-label="Select test trend"></select>
+      </div>
+      <div id="test-timings-table"></div>
+    </div>
+    <div class="col-xl-5">
+      <h2 id="trend-title" class="h4">Weekly trend</h2>
+      <canvas id="trend-chart" height="190"></canvas>
+      <div id="trend-empty" class="text-secondary d-none">No weekly samples for this test.</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const integer = new Intl.NumberFormat();
+  const percent = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  });
+  const duration = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 1,
+  });
+  let timingRows = [];
+  let chart;
+  let selectedKey = "";
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatMs(value) {
+    if (!Number.isFinite(value)) {
+      return "n/a";
+    }
+    if (value >= 60000) {
+      return `${duration.format(value / 60000)}m`;
+    }
+    if (value >= 1000) {
+      return `${duration.format(value / 1000)}s`;
+    }
+    return `${integer.format(Math.round(value))}ms`;
+  }
+
+  function formatSignedMs(value) {
+    const sign = value >= 0 ? "+" : "-";
+    return `${sign}${formatMs(Math.abs(value))}`;
+  }
+
+  function rowKey(row) {
+    return String(row.timingIndex);
+  }
+
+  function minimumSamples() {
+    return Math.max(0, Number.parseInt(document.getElementById("min-samples").value, 10) || 0);
+  }
+
+  function filteredRows() {
+    const job = document.getElementById("job-filter").value;
+    const kind = document.getElementById("kind-filter").value;
+    const comparison = document.getElementById("comparison-filter").value;
+    const test = document.getElementById("test-filter").value.toLowerCase();
+    const minSamples = minimumSamples();
+    return timingRows
+      .filter((row) => !job || row.job === job)
+      .filter((row) => !kind || row.kind === kind)
+      .filter((row) => !comparison || rowComparison(row) === comparison)
+      .filter((row) => !test || row.test.toLowerCase().includes(test))
+      .filter((row) => sampleCountForFilter(row) >= minSamples)
+      .sort((a, b) =>
+        comparisonRank(a) - comparisonRank(b) ||
+        medianDeltaMs(b) - medianDeltaMs(a) ||
+        b.changePercent - a.changePercent ||
+        b.recentMedianMs - a.recentMedianMs ||
+        a.test.localeCompare(b.test)
+      );
+  }
+
+  function medianDeltaMs(row) {
+    return row.recentMedianMs - row.baselineMedianMs;
+  }
+
+  function rowComparison(row) {
+    return row.baselineSamples > 0 ? "comparable" : "new";
+  }
+
+  function sampleCountForFilter(row) {
+    return rowComparison(row) === "comparable"
+      ? Math.min(row.recentSamples, row.baselineSamples)
+      : row.recentSamples;
+  }
+
+  function comparisonRank(row) {
+    return rowComparison(row) === "comparable" ? 0 : 1;
+  }
+
+  function populateJobFilter(rows) {
+    const select = document.getElementById("job-filter");
+    const jobs = [...new Set(rows.map((row) => row.job))].sort();
+    select.insertAdjacentHTML("beforeend", jobs.map((job) =>
+      `<option value="${escapeHtml(job)}">${escapeHtml(job)}</option>`
+    ).join(""));
+  }
+
+  function renderTable(rows) {
+    document.getElementById("test-timings-summary").innerText =
+      `Showing ${integer.format(rows.length)} of ${integer.format(timingRows.length)} job-test timings.`;
+    document.getElementById("trend-select").innerHTML = rows.map((row) => {
+      const change = rowComparison(row) === "comparable"
+        ? `${formatSignedMs(medianDeltaMs(row))} ${row.changePercent >= 0 ? "+" : ""}${percent.format(row.changePercent)}%`
+        : "new";
+      const label = `${change} ${row.kind} ${row.test}`;
+      return `<option value="${escapeHtml(rowKey(row))}">${escapeHtml(label)}</option>`;
+    }).join("");
+    document.getElementById("trend-select").value = selectedKey;
+
+    const visibleRows = rows.slice(0, 200);
+    const body = visibleRows.map((row) => {
+      const key = rowKey(row);
+      const active = key === selectedKey ? "table-primary" : "";
+      const delta = medianDeltaMs(row);
+      const comparable = rowComparison(row) === "comparable";
+      const changeClass = comparable ? delta > 0 ? "text-danger" : "text-success" : "text-secondary";
+      return `
+        <tr class="${active}" data-key="${escapeHtml(key)}" tabindex="0">
+          <td>${escapeHtml(row.job)}</td>
+          <td>${escapeHtml(row.kind)}</td>
+          <td>${escapeHtml(row.test)}</td>
+          <td class="${changeClass}">${comparable ? formatSignedMs(delta) : "new"}</td>
+          <td class="${changeClass}">${comparable ? `${row.changePercent >= 0 ? "+" : ""}${percent.format(row.changePercent)}%` : "n/a"}</td>
+          <td>${formatMs(row.recentMedianMs)}</td>
+          <td>${comparable ? formatMs(row.baselineMedianMs) : "n/a"}</td>
+          <td>${integer.format(row.recentSamples)} / ${integer.format(row.baselineSamples)}</td>
+        </tr>`;
+    }).join("");
+
+    document.getElementById("test-timings-table").innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead>
+            <tr>
+              <th scope="col">job</th>
+              <th scope="col">kind</th>
+              <th scope="col">test</th>
+              <th scope="col">delta</th>
+              <th scope="col">change</th>
+              <th scope="col">recent</th>
+              <th scope="col">baseline</th>
+              <th scope="col">samples</th>
+            </tr>
+          </thead>
+          <tbody>${body || '<tr><td colspan="8">No test timings match these filters.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    document.querySelectorAll("#test-timings-table tr[data-key]").forEach((row) => {
+      row.addEventListener("click", () => selectTrend(row.dataset.key));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          selectTrend(row.dataset.key);
+        }
+      });
+    });
+  }
+
+  function renderTrend(row) {
+    const weeks = row ? row.weeks || [] : [];
+    const title = row
+      ? `${row.kind} ${row.test}`
+      : "Weekly trend";
+    document.getElementById("trend-title").innerText = title;
+    document.getElementById("trend-empty").classList.toggle("d-none", weeks.length > 0);
+
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+    if (weeks.length === 0) {
+      return;
+    }
+
+    chart = new Chart(document.getElementById("trend-chart"), {
+      type: "line",
+      data: {
+        labels: weeks.map((week) => week.week),
+        datasets: [{
+          label: "weekly median",
+          data: weeks.map((week) => week.medianMs),
+          borderColor: "#0d6efd",
+          backgroundColor: "#0d6efd",
+          tension: 0.15,
+        }],
+      },
+      options: {
+        animation: false,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { callback: (value) => formatMs(value) },
+          },
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (context) => {
+                const week = weeks[context.dataIndex];
+                return `${formatMs(week.medianMs)} from ${integer.format(week.samples)} samples`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  function selectTrend(key) {
+    selectedKey = key;
+    const row = timingRows.find((candidate) => rowKey(candidate) === key);
+    document.getElementById("trend-select").value = key;
+    renderTrend(row);
+    renderTable(filteredRows());
+  }
+
+  function render() {
+    const rows = filteredRows();
+    if (!rows.some((row) => rowKey(row) === selectedKey)) {
+      selectedKey = rows.length > 0 ? rowKey(rows[0]) : "";
+    }
+    renderTable(rows);
+    renderTrend(rows.find((row) => rowKey(row) === selectedKey));
+  }
+
+  document.getElementById("job-filter").addEventListener("change", render);
+  document.getElementById("kind-filter").addEventListener("change", render);
+  document.getElementById("comparison-filter").addEventListener("change", render);
+  document.getElementById("min-samples").addEventListener("input", render);
+  document.getElementById("test-filter").addEventListener("input", render);
+  document.getElementById("trend-select").addEventListener("change", (event) => selectTrend(event.target.value));
+
+  fetch('{{ relURL "test-timings.json" }}')
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      timingRows = (data.rows || []).map((row, timingIndex) => ({ ...row, timingIndex }));
+      populateJobFilter(timingRows);
+      document.getElementById("test-timings-loading").classList.add("d-none");
+      document.getElementById("test-timings").classList.remove("d-none");
+      render();
+    })
+    .catch((error) => {
+      document.getElementById("test-timings-loading").innerText = `Error loading test timings: ${error}`;
+    });
+</script>
+
+{{ end }}

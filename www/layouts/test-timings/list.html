@@ -436,9 +436,14 @@
     const row = timingRows.find((candidate) => rowKey(candidate) === key);
     document.getElementById("trend-select").value = key;
     renderTrend(row);
-    const rows = filteredRows();
-    renderSlowdowns(rows);
-    renderTable(rows);
+    document.querySelector("#test-timings-table tr.table-primary")?.classList.remove("table-primary");
+    document.querySelector(`#test-timings-table tr[data-key="${key}"]`)?.classList.add("table-primary");
+    if (slowdownChart) {
+      const chartRows = slowdownChart.data.datasets[0].customRows;
+      slowdownChart.data.datasets[0].backgroundColor = chartRows.map((candidate) => rowKey(candidate) === key ? "#b02a37" : "#dc3545");
+      slowdownChart.data.datasets[0].borderColor = chartRows.map((candidate) => rowKey(candidate) === key ? "#842029" : "#dc3545");
+      slowdownChart.update("none");
+    }
   }
 
   function render() {

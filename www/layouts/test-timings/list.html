@@ -120,6 +120,8 @@
   let chart;
   let slowdownChart;
   let selectedKey = "";
+  let tableSort = "delta";
+  let tableSortDescending = true;
 
   function escapeHtml(value) {
     return String(value)
@@ -168,13 +170,20 @@
       .filter((row) => !comparison || rowComparison(row) === comparison)
       .filter((row) => !test || row.test.toLowerCase().includes(test))
       .filter((row) => sampleCountForFilter(row) >= minSamples)
-      .sort((a, b) =>
-        comparisonRank(a) - comparisonRank(b) ||
-        medianDeltaMs(b) - medianDeltaMs(a) ||
-        b.changePercent - a.changePercent ||
-        b.recentMedianMs - a.recentMedianMs ||
-        a.test.localeCompare(b.test)
-      );
+      .sort((a, b) => {
+        const comparison = comparisonRank(a) - comparisonRank(b);
+        if (comparison) return comparison;
+        if (tableSort) {
+          const difference = tableSort === "delta"
+            ? medianDeltaMs(a) - medianDeltaMs(b)
+            : a.changePercent - b.changePercent;
+          if (difference) return tableSortDescending ? -difference : difference;
+        }
+        return medianDeltaMs(b) - medianDeltaMs(a) ||
+          b.changePercent - a.changePercent ||
+          b.recentMedianMs - a.recentMedianMs ||
+          a.test.localeCompare(b.test);
+      });
   }
 
   function medianDeltaMs(row) {
@@ -320,17 +329,19 @@
     ).join(""));
   }
 
-  function renderTable(rows) {
+  function renderTable(rows, updateTrendSelect = true) {
     document.getElementById("test-timings-summary").innerText =
       `Showing ${integer.format(rows.length)} of ${integer.format(timingRows.length)} job-test timings.`;
-    document.getElementById("trend-select").innerHTML = rows.map((row) => {
-      const change = rowComparison(row) === "comparable"
-        ? `${formatSignedMs(medianDeltaMs(row))} ${row.changePercent >= 0 ? "+" : ""}${percent.format(row.changePercent)}%`
-        : "new";
-      const label = `${change} ${row.kind} ${row.test}`;
-      return `<option value="${escapeHtml(rowKey(row))}">${escapeHtml(label)}</option>`;
-    }).join("");
-    document.getElementById("trend-select").value = selectedKey;
+    if (updateTrendSelect) {
+      document.getElementById("trend-select").innerHTML = rows.map((row) => {
+        const change = rowComparison(row) === "comparable"
+          ? `${formatSignedMs(medianDeltaMs(row))} ${row.changePercent >= 0 ? "+" : ""}${percent.format(row.changePercent)}%`
+          : "new";
+        const label = `${change} ${row.kind} ${row.test}`;
+        return `<option value="${escapeHtml(rowKey(row))}">${escapeHtml(label)}</option>`;
+      }).join("");
+      document.getElementById("trend-select").value = selectedKey;
+    }
 
     const visibleRows = rows.slice(0, 200);
     const body = visibleRows.map((row) => {
@@ -360,8 +371,8 @@
               <th scope="col">job</th>
               <th scope="col">kind</th>
               <th scope="col">test</th>
-              <th scope="col">delta</th>
-              <th scope="col">change</th>
+              <th scope="col" aria-sort="${tableSort === "delta" ? tableSortDescending ? "descending" : "ascending" : "none"}"><button type="button" class="btn btn-link p-0 text-reset text-decoration-underline" data-sort="delta">delta${tableSort === "delta" ? tableSortDescending ? " ↓" : " ↑" : ""}</button></th>
+              <th scope="col" aria-sort="${tableSort === "change" ? tableSortDescending ? "descending" : "ascending" : "none"}"><button type="button" class="btn btn-link p-0 text-reset text-decoration-underline" data-sort="change">change (%)${tableSort === "change" ? tableSortDescending ? " ↓" : " ↑" : ""}</button></th>
               <th scope="col">recent</th>
               <th scope="col">baseline</th>
               <th scope="col">samples</th>
@@ -377,6 +388,14 @@
           event.preventDefault();
           selectTrend(row.dataset.key);
         }
+      });
+    });
+    document.querySelectorAll("#test-timings-table button[data-sort]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextSort = button.dataset.sort;
+        tableSortDescending = tableSort === nextSort ? !tableSortDescending : true;
+        tableSort = nextSort;
+        renderTable(filteredRows(), false);
       });
     });
   }

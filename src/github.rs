@@ -384,4 +384,15 @@ impl GitHubActionsFetcher {
         let reader = BufReader::new(file);
         parse_job_log(reader, job_completed_at)
     }
+
+    pub async fn fetch_job_test_timings(
+        &self,
+        job_id: u64,
+        job_completed_at: i64,
+    ) -> Result<Vec<TestTiming>> {
+        let (_, _, _, test_timings) = self
+            .download_and_parse_log(job_id, job_completed_at)
+            .await?;
+        Ok(test_timings)
+    }
 }

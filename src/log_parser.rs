@@ -4,15 +4,13 @@ use regex::Regex;
 use std::io::BufRead;
 use std::sync::OnceLock;
 
-use crate::models::{Command, TaskRuntimeStats};
+use crate::models::{Command, TaskRuntimeStats, TestKind, TestTiming};
 
 /// Returns a compiled regex for extracting ccache hit rate percentages.
 /// Pattern matches both "75.69%" and "100%" formats.
 fn ccache_hitrate_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        Regex::new(r"\(\s*(\d+(?:\.\d+)?%)\)").expect("valid ccache hitrate regex")
-    })
+    RE.get_or_init(|| Regex::new(r"\(\s*(\d+(?:\.\d+)?%)\)").expect("valid ccache hitrate regex"))
 }
 
 /// Returns a compiled regex for parsing GitHub Actions log command lines.
@@ -21,6 +19,41 @@ fn command_pattern_regex() -> &'static Regex {
     RE.get_or_init(|| {
         Regex::new(r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z) .*?\+ (.+)")
             .expect("valid command pattern regex")
+    })
+}
+
+fn unit_test_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"\b\d+/\d+ Test #\d+: (.+?) \.{2,}\s+\*{0,3}(Passed|Failed|Not Run|Timeout)\s+([\d.]+) sec")
+            .expect("valid unit test regex")
+    })
+}
+
+fn functional_test_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"Z\s+(.+?\.py(?:\s+[^|]*?)?)\s+\|\s+(.+?)\s+\|\s+(\d+) s(?:\s|$)")
+            .expect("valid functional test regex")
+    })
+}
+
+fn parse_test_timing(line: &str) -> Option<TestTiming> {
+    if let Some(caps) = unit_test_regex().captures(line) {
+        let duration_ms = (caps[3].parse::<f64>().ok()? * 1000.0).round() as u64;
+        return Some(TestTiming {
+            kind: TestKind::Unit,
+            name: caps[1].to_string(),
+            duration_ms,
+            status: caps[2].to_string(),
+        });
+    }
+    let caps = functional_test_regex().captures(line)?;
+    Some(TestTiming {
+        kind: TestKind::Functional,
+        name: caps[1].trim().to_string(),
+        duration_ms: caps[3].parse::<u64>().ok()? * 1000,
+        status: caps[2].trim().to_string(),
     })
 }
 
@@ -52,15 +85,20 @@ fn finalize_command(
 pub fn parse_job_log<R: BufRead>(
     reader: R,
     job_completed_at: i64,
-) -> Result<(usize, Vec<Command>, TaskRuntimeStats)> {
+) -> Result<(usize, Vec<Command>, TaskRuntimeStats, Vec<TestTiming>)> {
     let mut commands = Vec::new();
     let mut runtime_stats = TaskRuntimeStats::default();
+    let mut test_timings = Vec::new();
     let mut pending: Option<PendingCommand> = None;
     let mut line_count: usize = 0;
 
     for (line_num, line_result) in reader.lines().enumerate() {
         let line = line_result?;
         line_count = line_num + 1;
+
+        if let Some(timing) = parse_test_timing(&line) {
+            test_timings.push(timing);
+        }
 
         if let Some(caps) = command_pattern_regex().captures(&line) {
             if let Ok(timestamp) = caps[1].parse::<DateTime<Utc>>() {
@@ -93,12 +131,13 @@ pub fn parse_job_log<R: BufRead>(
         finalize_command(prev, end, &mut commands, &mut runtime_stats);
     }
 
-    Ok((line_count, commands, runtime_stats))
+    Ok((line_count, commands, runtime_stats, test_timings))
 }
 
 #[cfg(test)]
 mod tests {
     use super::parse_job_log;
+    use crate::models::TestKind;
     use chrono::DateTime;
     use std::fs;
     use std::io::Cursor;
@@ -117,12 +156,16 @@ mod tests {
             .expect("valid timestamp")
             .timestamp();
         let content = fixture_content();
-        let (line_count, commands, stats) =
+        let (line_count, commands, stats, _) =
             parse_job_log(Cursor::new(content), completed_at).expect("parse fixture");
 
         assert!(line_count >= 10);
         assert!(!commands.is_empty());
-        assert!(commands.iter().any(|c| c.cmd.contains("docker buildx build")));
+        assert!(
+            commands
+                .iter()
+                .any(|c| c.cmd.contains("docker buildx build"))
+        );
         assert!(commands.iter().any(|c| c.cmd.contains("cmake -S ")));
         assert!(commands.iter().any(|c| c.cmd.contains("cmake --build ")));
         assert!(commands.iter().any(|c| c.cmd.contains("ctest ")));
@@ -141,11 +184,46 @@ mod tests {
         let completed_at = DateTime::parse_from_rfc3339("2026-02-28T16:48:50Z")
             .expect("valid timestamp")
             .timestamp();
-        let (_line_count, commands, stats) =
+        let (_line_count, commands, stats, _) =
             parse_job_log(Cursor::new(log), completed_at).expect("parse truncated log");
 
         assert_eq!(commands.len(), 2);
         assert!(stats.configure_duration.is_some());
         assert!(stats.build_duration.is_some());
+    }
+
+    #[test]
+    fn parses_windows_test_summaries() {
+        let log = "\
+2026-09-13T23:43:04.3645655Z  97/376 Test #100: secp256k1.noverify_tests.test_recipient_sort ........   Passed    0.03 sec\n\
+2026-09-13T23:44:01.5174361Z 220/376 Test #222: test_bitcoin-qt ........   Passed    5.84 sec\n\
+2026-09-14T00:01:52.0330890Z example_test.py                                         | ✓ Passed  | 2 s\n\
+2026-09-14T00:01:52.0341414Z feature_bip68_sequence.py                            | ✓ Passed  | 27 s\n\
+2026-09-14T00:01:52.0341414Z feature_failed.py                                    | ✖ Failed  | 4 s\n\
+2026-09-13T23:44:01.5174361Z 221/376 Test #223: failed_unit ........   ***Failed    1.25 sec\n\
+2026-09-14T00:01:52.0848207Z ALL                                  | ✓ Passed  | 3661 s (accumulated)\n";
+        let (_, _, _, timings) = parse_job_log(Cursor::new(log), 0).expect("parse test summaries");
+        assert_eq!(timings.len(), 6);
+        assert_eq!(timings[0].kind, TestKind::Unit);
+        assert_eq!(
+            timings[0].name,
+            "secp256k1.noverify_tests.test_recipient_sort"
+        );
+        assert_eq!(timings[0].duration_ms, 30);
+        assert_eq!(timings[1].duration_ms, 5840);
+        assert_eq!(timings[2].kind, TestKind::Functional);
+        assert_eq!(timings[2].name, "example_test.py");
+        assert_eq!(timings[2].duration_ms, 2000);
+        assert_eq!(timings[3].duration_ms, 27000);
+        assert!(timings.iter().any(|timing| timing.name == "failed_unit"
+            && timing.status == "Failed"
+            && timing.duration_ms == 1250));
+        assert!(
+            timings
+                .iter()
+                .any(|timing| timing.name == "feature_failed.py"
+                    && timing.status == "✖ Failed"
+                    && timing.duration_ms == 4000)
+        );
     }
 }

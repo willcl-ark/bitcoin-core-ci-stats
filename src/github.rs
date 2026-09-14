@@ -10,7 +10,7 @@ use tracing::{info, warn};
 use crate::constants::MAX_LOG_BYTES;
 use crate::errors::AppError;
 use crate::log_parser::parse_job_log;
-use crate::models::{Build, Task, TaskRuntimeStats};
+use crate::models::{Build, Task, TaskRuntimeStats, TestTiming};
 
 struct TempFileGuard {
     path: PathBuf,
@@ -271,7 +271,7 @@ impl GitHubActionsFetcher {
         };
 
         let job_id = required_u64(job_value, "id")?;
-        let (log_status_code, commands, runtime_stats) =
+        let (log_status_code, commands, runtime_stats, test_timings) =
             self.fetch_and_parse_job_log(job_id, job_completed_at).await;
 
         Ok(Task {
@@ -289,6 +289,7 @@ impl GitHubActionsFetcher {
             log_status_code,
             commands,
             runtime_stats,
+            test_timings,
         })
     }
 
@@ -296,15 +297,20 @@ impl GitHubActionsFetcher {
         &self,
         job_id: u64,
         job_completed_at: i64,
-    ) -> (u16, Vec<crate::models::Command>, TaskRuntimeStats) {
+    ) -> (
+        u16,
+        Vec<crate::models::Command>,
+        TaskRuntimeStats,
+        Vec<TestTiming>,
+    ) {
         match self.download_and_parse_log(job_id, job_completed_at).await {
-            Ok((line_count, commands, stats)) => {
+            Ok((line_count, commands, stats, test_timings)) => {
                 info!("Fetched log for job {}: {} lines", job_id, line_count);
-                (200, commands, stats)
+                (200, commands, stats, test_timings)
             }
             Err(e) => {
                 warn!("Failed to process log for job {}: {}", job_id, e);
-                (500, vec![], TaskRuntimeStats::default())
+                (500, vec![], TaskRuntimeStats::default(), vec![])
             }
         }
     }
@@ -313,7 +319,12 @@ impl GitHubActionsFetcher {
         &self,
         job_id: u64,
         job_completed_at: i64,
-    ) -> Result<(usize, Vec<crate::models::Command>, TaskRuntimeStats)> {
+    ) -> Result<(
+        usize,
+        Vec<crate::models::Command>,
+        TaskRuntimeStats,
+        Vec<TestTiming>,
+    )> {
         let url = format!(
             "https://api.github.com/repos/{}/{}/actions/jobs/{}/logs",
             self.owner, self.repo, job_id

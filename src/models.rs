@@ -72,6 +72,23 @@ pub struct Task {
     pub commands: Vec<Command>,
     #[serde(rename = "runtime_stats")]
     pub runtime_stats: TaskRuntimeStats,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub test_timings: Vec<TestTiming>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TestKind {
+    Unit,
+    Functional,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestTiming {
+    pub kind: TestKind,
+    pub name: String,
+    pub duration_ms: u64,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -5,3 +5,4 @@ pub mod github;
 pub mod log_parser;
 pub mod models;
 pub mod storage;
+pub mod test_timing_summary;

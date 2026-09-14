@@ -3,4 +3,5 @@ pub const MAX_LOG_BYTES: usize = 512 * 1024 * 1024;
 pub const TASKS_FILENAME: &str = "tasks.json";
 pub const GRAPH_FILENAME: &str = "graph.json";
 pub const STATS_FILENAME: &str = "stats.json";
+pub const TEST_TIMINGS_FILENAME: &str = "test-timings.json";
 pub const CHECKPOINT_FILENAME: &str = ".checkpoint.json";

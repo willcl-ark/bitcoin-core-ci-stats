@@ -1,8 +1,9 @@
 use anyhow::Result;
 use std::collections::HashSet;
 
-use crate::constants::{GRAPH_FILENAME, STATS_FILENAME, TASKS_FILENAME};
+use crate::constants::{GRAPH_FILENAME, STATS_FILENAME, TASKS_FILENAME, TEST_TIMINGS_FILENAME};
 use crate::models::{GraphStats, Stats, Task, TaskStatus};
+use crate::test_timing_summary::TestTimingSummary;
 
 pub fn load_existing_task_ids() -> Result<HashSet<u64>> {
     if !std::path::Path::new(TASKS_FILENAME).exists() {
@@ -66,6 +67,10 @@ fn save_derived_data(all_tasks: &[Task]) -> Result<()> {
     let stats = Stats::from(all_tasks);
     let stats_json = serde_json::to_string_pretty(&stats)?;
     std::fs::write(STATS_FILENAME, stats_json)?;
+
+    let test_timing_summary = TestTimingSummary::from_tasks(all_tasks);
+    let test_timing_summary_json = serde_json::to_string_pretty(&test_timing_summary)?;
+    std::fs::write(TEST_TIMINGS_FILENAME, test_timing_summary_json)?;
 
     Ok(())
 }

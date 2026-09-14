@@ -6,10 +6,36 @@
 
 <div id="test-timings" class="d-none">
   <p class="text-secondary">
-    Per-test medians compare the last 28 days with the prior 28 days, grouped by job.
+    Per-test medians compare the last 7 days with the prior 28-day baseline, grouped by job.
     Rows need at least 3 samples, weekly trends cover 12 weeks, and new tests can be filtered as new/uncompared.
     Removed tests age out of the rolling data. Functional timings are whole seconds; unit timings are often hundredths.
   </p>
+
+  <style>
+    .slowdown-overview {
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .slowdown-summary {
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      height: 100%;
+    }
+
+    .slowdown-summary button {
+      text-align: left;
+    }
+
+    .slowdown-chart-wrap {
+      height: 320px;
+      min-height: 260px;
+      position: relative;
+    }
+  </style>
 
   <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
     <div>
@@ -44,6 +70,27 @@
     </div>
   </div>
 
+  <section class="slowdown-overview" aria-labelledby="slowdown-title">
+    <div class="d-flex flex-wrap align-items-baseline gap-2 mb-3">
+      <h2 id="slowdown-title" class="h4 mb-0">Largest slowdowns</h2>
+      <span id="slowdown-summary-text" class="text-secondary"></span>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-4">
+        <div class="slowdown-summary">
+          <div class="text-secondary text-uppercase small fw-semibold mb-2">Worst comparable row</div>
+          <button id="slowdown-top-card" type="button" class="btn btn-link p-0 text-decoration-none d-none"></button>
+          <div id="slowdown-empty" class="text-secondary">No comparable slowdowns match these filters.</div>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <div class="slowdown-chart-wrap">
+          <canvas id="slowdown-chart" aria-label="Top job-test slowdowns" role="img"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <div class="row g-4">
     <div class="col-xl-7">
       <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -71,6 +118,7 @@
   });
   let timingRows = [];
   let chart;
+  let slowdownChart;
   let selectedKey = "";
 
   function escapeHtml(value) {
@@ -145,6 +193,123 @@
 
   function comparisonRank(row) {
     return rowComparison(row) === "comparable" ? 0 : 1;
+  }
+
+  function slowdownRows(rows) {
+    return rows
+      .filter((row) => rowComparison(row) === "comparable" && medianDeltaMs(row) > 0)
+      .sort((a, b) =>
+        medianDeltaMs(b) - medianDeltaMs(a) ||
+        b.changePercent - a.changePercent ||
+        b.recentMedianMs - a.recentMedianMs ||
+        a.job.localeCompare(b.job) ||
+        a.test.localeCompare(b.test)
+      );
+  }
+
+  function chartLabel(row) {
+    return `${row.job} | ${row.kind} | ${row.test}`;
+  }
+
+  function truncateLabel(value, maxLength = 58) {
+    const text = String(value);
+    return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+  }
+
+  function renderSlowdowns(rows) {
+    const slowdowns = slowdownRows(rows);
+    const chartRows = slowdowns.slice(0, 12);
+    const summaryText = document.getElementById("slowdown-summary-text");
+    const topCard = document.getElementById("slowdown-top-card");
+    const empty = document.getElementById("slowdown-empty");
+
+    summaryText.innerText = slowdowns.length > 0
+      ? `Top ${integer.format(chartRows.length)} of ${integer.format(slowdowns.length)} comparable slowdowns for the current filters.`
+      : "No comparable slowdown rows for the current filters.";
+
+    if (slowdowns.length > 0) {
+      const top = slowdowns[0];
+      topCard.dataset.key = rowKey(top);
+      topCard.innerHTML = `
+        <div class="fw-semibold text-body">${escapeHtml(top.test)}</div>
+        <div class="text-secondary small">${escapeHtml(top.job)} / ${escapeHtml(top.kind)}</div>
+        <div class="text-danger fs-4 fw-semibold">${formatSignedMs(medianDeltaMs(top))} (${percent.format(top.changePercent)}%)</div>
+        <div class="text-secondary small">${formatMs(top.baselineMedianMs)} to ${formatMs(top.recentMedianMs)} median, ${integer.format(top.baselineSamples)} to ${integer.format(top.recentSamples)} samples</div>`;
+      topCard.classList.remove("d-none");
+      empty.classList.add("d-none");
+    } else {
+      topCard.classList.add("d-none");
+      empty.classList.remove("d-none");
+    }
+
+    if (slowdownChart) {
+      slowdownChart.destroy();
+      slowdownChart = null;
+    }
+    if (chartRows.length === 0) {
+      return;
+    }
+
+    slowdownChart = new Chart(document.getElementById("slowdown-chart"), {
+      type: "bar",
+      data: {
+        labels: chartRows.map(chartLabel),
+        datasets: [{
+          label: "median slowdown",
+          data: chartRows.map((row) => medianDeltaMs(row)),
+          backgroundColor: chartRows.map((row) => rowKey(row) === selectedKey ? "#b02a37" : "#dc3545"),
+          borderColor: chartRows.map((row) => rowKey(row) === selectedKey ? "#842029" : "#dc3545"),
+          borderWidth: 1,
+          customRows: chartRows,
+        }],
+      },
+      options: {
+        animation: false,
+        indexAxis: "y",
+        maintainAspectRatio: false,
+        onHover: (event, elements) => {
+          if (event.native?.target) {
+            event.native.target.style.cursor = elements.length > 0 ? "pointer" : "default";
+          }
+        },
+        onClick: (event, elements) => {
+          const index = elements[0]?.index;
+          const row = Number.isInteger(index) ? chartRows[index] : null;
+          if (row) {
+            selectTrend(rowKey(row));
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            ticks: { callback: (value) => formatMs(value) },
+            title: { display: true, text: "Median slowdown" },
+          },
+          y: {
+            ticks: { callback: (value) => truncateLabel(chartRows[value] ? chartLabel(chartRows[value]) : value) },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => items[0]?.label || "",
+              label: (context) => {
+                const row = context.dataset.customRows[context.dataIndex];
+                return `${formatSignedMs(medianDeltaMs(row))} (${percent.format(row.changePercent)}%)`;
+              },
+              afterLabel: (context) => {
+                const row = context.dataset.customRows[context.dataIndex];
+                return [
+                  `median: ${formatMs(row.baselineMedianMs)} to ${formatMs(row.recentMedianMs)}`,
+                  `samples: ${integer.format(row.baselineSamples)} baseline, ${integer.format(row.recentSamples)} recent`,
+                ];
+              },
+            },
+          },
+        },
+      },
+    });
   }
 
   function populateJobFilter(rows) {
@@ -271,7 +436,9 @@
     const row = timingRows.find((candidate) => rowKey(candidate) === key);
     document.getElementById("trend-select").value = key;
     renderTrend(row);
-    renderTable(filteredRows());
+    const rows = filteredRows();
+    renderSlowdowns(rows);
+    renderTable(rows);
   }
 
   function render() {
@@ -279,9 +446,14 @@
     if (!rows.some((row) => rowKey(row) === selectedKey)) {
       selectedKey = rows.length > 0 ? rowKey(rows[0]) : "";
     }
+    renderSlowdowns(rows);
     renderTable(rows);
     renderTrend(rows.find((row) => rowKey(row) === selectedKey));
   }
+
+  document.getElementById("slowdown-top-card").addEventListener("click", (event) => {
+    selectTrend(event.currentTarget.dataset.key);
+  });
 
   document.getElementById("job-filter").addEventListener("change", render);
   document.getElementById("kind-filter").addEventListener("change", render);

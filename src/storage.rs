@@ -71,6 +71,7 @@ fn save_derived_data(all_tasks: &[Task]) -> Result<()> {
     let test_timing_summary = TestTimingSummary::from_tasks(all_tasks);
     let test_timing_summary_json = serde_json::to_string_pretty(&test_timing_summary)?;
     std::fs::write(TEST_TIMINGS_FILENAME, test_timing_summary_json)?;
+    crate::test_timing_summary::save_pr_summaries(all_tasks)?;
 
     Ok(())
 }

@@ -41,6 +41,8 @@ pub struct Build {
     pub id: u64,
     pub status: TaskStatus,
     pub branch: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pull_requests: Vec<u64>,
     #[serde(rename = "changeIdInRepo")]
     pub change_id_in_repo: String,
     #[serde(rename = "changeMessageTitle")]

@@ -265,6 +265,12 @@ impl GitHubActionsFetcher {
             id: required_u64(run_value, "id")?,
             status: build_status,
             branch: required_str(run_value, "head_branch")?.to_string(),
+            pull_requests: run_value["pull_requests"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|pr| pr["number"].as_u64())
+                .collect(),
             change_id_in_repo: required_str(run_value, "head_sha")?.to_string(),
             change_message_title: required_str(run_value, "display_title")?.to_string(),
             build_created_timestamp: run_created_at,

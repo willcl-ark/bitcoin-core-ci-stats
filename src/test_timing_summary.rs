@@ -62,11 +62,131 @@ impl TestTimingSummary {
     }
 }
 
+/// PR samples are compared with master measurements preceding that PR's
+/// latest run. Emit separate files so selecting a PR needs no archive scan.
+pub fn save_pr_summaries(tasks: &[Task]) -> anyhow::Result<()> {
+    save_pr_summaries_at(tasks, std::path::Path::new("pr-test-timings"))
+}
+
+fn save_pr_summaries_at(tasks: &[Task], output: &std::path::Path) -> anyhow::Result<()> {
+    let mut prs = BTreeMap::<u64, Vec<&Task>>::new();
+    let Some(anchor) = latest_task_timestamp(tasks) else {
+        return Ok(());
+    };
+    for task in tasks
+        .iter()
+        .filter(|task| task.creation_timestamp >= (anchor - Duration::days(30)).timestamp())
+    {
+        for number in &task.build.pull_requests {
+            prs.entry(*number).or_default().push(task);
+        }
+    }
+    std::fs::create_dir_all(output)?;
+    let mut master = HashMap::<TestKey, Vec<(i64, u64)>>::new();
+    for task in tasks.iter().filter(|task| {
+        task.build.branch == "master"
+            && task.build.pull_requests.is_empty()
+            && task.creation_timestamp >= (anchor - Duration::days(58)).timestamp()
+    }) {
+        for timing in task
+            .test_timings
+            .iter()
+            .filter(|timing| is_success_status(&timing.status))
+        {
+            master
+                .entry(TestKey {
+                    job: task.name.clone(),
+                    kind: timing.kind,
+                    test: timing.name.clone(),
+                })
+                .or_default()
+                .push((task.creation_timestamp, timing.duration_ms));
+        }
+    }
+    for (number, pr_tasks) in prs {
+        let latest = pr_tasks
+            .iter()
+            .map(|task| task.creation_timestamp)
+            .max()
+            .unwrap();
+        let mut samples = HashMap::<TestKey, Samples>::new();
+        for task in &pr_tasks {
+            if task.name == EXCLUDED_TEST_TIMING_JOB {
+                continue;
+            }
+            for timing in task
+                .test_timings
+                .iter()
+                .filter(|timing| is_success_status(&timing.status))
+            {
+                samples
+                    .entry(TestKey {
+                        job: task.name.clone(),
+                        kind: timing.kind,
+                        test: timing.name.clone(),
+                    })
+                    .or_default()
+                    .recent
+                    .push(timing.duration_ms);
+            }
+        }
+        for (key, sample) in &mut samples {
+            if let Some(values) = master.get(key) {
+                sample.baseline.extend(
+                    values
+                        .iter()
+                        .filter(|(created, _)| *created < latest && *created >= latest - 28 * 86400)
+                        .map(|(_, duration)| *duration),
+                );
+            }
+        }
+        let mut rows: Vec<_> = samples
+            .into_iter()
+            .map(|(key, sample)| {
+                let recent = median_ms(&sample.recent);
+                let baseline = if sample.baseline.len() >= 3 {
+                    median_ms(&sample.baseline)
+                } else {
+                    0.0
+                };
+                TestTimingRow {
+                    job: key.job,
+                    kind: key.kind,
+                    test: key.test,
+                    recent_median_ms: recent,
+                    baseline_median_ms: baseline,
+                    recent_samples: sample.recent.len(),
+                    baseline_samples: if baseline > 0.0 {
+                        sample.baseline.len()
+                    } else {
+                        0
+                    },
+                    change_percent: if baseline > 0.0 {
+                        (recent - baseline) * 100.0 / baseline
+                    } else {
+                        0.0
+                    },
+                    weeks: Vec::new(),
+                }
+            })
+            .collect();
+        rows.sort_by(|a, b| a.job.cmp(&b.job).then_with(|| a.test.cmp(&b.test)));
+        std::fs::write(
+            output.join(format!("{number}.json")),
+            serde_json::to_vec(&TestTimingSummary {
+                generated_at: DateTime::from_timestamp(latest, 0).unwrap(),
+                rows,
+            })?,
+        )?;
+    }
+    Ok(())
+}
+
 fn latest_task_timestamp(tasks: &[Task]) -> Option<DateTime<Utc>> {
     DateTime::from_timestamp(
         tasks
             .iter()
-            .filter(|task| task.build.branch == "master")
+            .filter(|task| task.build.branch == "master" && task.build.pull_requests.is_empty())
             .map(|task| task.creation_timestamp)
             .max()?,
         0,
@@ -87,6 +207,7 @@ fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
 
     for task in tasks {
         if task.build.branch != "master"
+            || !task.build.pull_requests.is_empty()
             || task.test_timings.is_empty()
             || task.name == EXCLUDED_TEST_TIMING_JOB
         {
@@ -397,6 +518,27 @@ mod tests {
         assert_eq!(summary.generated_at.timestamp(), ANCHOR);
     }
 
+    #[test]
+    fn compares_pr_to_preceding_master_samples() {
+        let mut tasks: Vec<_> = (0..3)
+            .map(|_| task(ANCHOR - DAY, "job-a", 1000, "Passed", TaskStatus::Completed))
+            .collect();
+        let mut pr = task(ANCHOR, "job-a", 2000, "Passed", TaskStatus::Completed);
+        pr.build.branch = "feature".into();
+        pr.build.pull_requests = vec![123];
+        tasks.push(pr);
+        let output = std::env::temp_dir().join(format!("ci-pr-summary-{}", std::process::id()));
+        super::save_pr_summaries_at(&tasks, &output).unwrap();
+        let summary: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(output.join("123.json")).unwrap()).unwrap();
+        let row = &summary["rows"][0];
+        assert_eq!(row["recentSamples"], 1);
+        assert_eq!(row["baselineSamples"], 3);
+        assert_eq!(row["changePercent"], 100.0);
+        std::fs::remove_file(output.join("123.json")).unwrap();
+        std::fs::remove_dir(output).unwrap();
+    }
+
     fn task(
         creation_timestamp: i64,
         name: &str,
@@ -418,6 +560,7 @@ mod tests {
                 id: creation_timestamp as u64,
                 status: task_status,
                 branch: "master".to_string(),
+                pull_requests: Vec::new(),
                 change_id_in_repo: "abc".to_string(),
                 change_message_title: "message".to_string(),
                 build_created_timestamp: creation_timestamp,

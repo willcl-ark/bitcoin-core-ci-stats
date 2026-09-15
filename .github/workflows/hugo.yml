@@ -68,6 +68,12 @@ jobs:
           fi
       - name: download stats.json
         run: |
+          git clone --depth 1 --single-branch --branch bitcoin-bitcoin-tasks https://github.com/${{ github.repository }}.git ${{ runner.temp }}/ci-data
+          if [ -d "${{ runner.temp }}/ci-data/pr-test-timings" ]; then
+            cp -r "${{ runner.temp }}/ci-data/pr-test-timings" www/static/
+          fi
+      - name: download stats summary
+        run: |
           if wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/stats.json; then
             mv stats.json www/static/stats.json
           else

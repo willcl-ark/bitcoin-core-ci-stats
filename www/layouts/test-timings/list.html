@@ -38,6 +38,14 @@
   </style>
 
   <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <form id="pr-form">
+      <label class="form-label mb-1" for="pr-number">PR number (blank for master)</label>
+      <div class="input-group input-group-sm">
+        <input id="pr-number" type="number" min="1" step="1" class="form-control" placeholder="e.g. 34000">
+        <button class="btn btn-outline-primary" type="submit">Compare</button>
+      </div>
+      <span id="pr-status" class="text-secondary small"></span>
+    </form>
     <div>
       <label class="form-label mb-1" for="job-filter">Job</label>
       <select class="form-select form-select-sm" id="job-filter">
@@ -117,6 +125,8 @@
     maximumFractionDigits: 1,
   });
   let timingRows = [];
+  let masterRows = [];
+  let prRequest = 0;
   let chart;
   let slowdownChart;
   let selectedKey = "";
@@ -486,6 +496,32 @@
   document.getElementById("test-filter").addEventListener("input", render);
   document.getElementById("trend-select").addEventListener("change", (event) => selectTrend(event.target.value));
 
+  document.getElementById("pr-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const request = ++prRequest;
+    const number = document.getElementById("pr-number").value;
+    const status = document.getElementById("pr-status");
+    try {
+      let rows = masterRows;
+      if (number) {
+        status.innerText = "Loading PR comparison...";
+        const response = await fetch('{{ relURL "pr-test-timings/" }}' + number + '.json');
+        if (!response.ok) throw new Error("No recorded timings for this PR yet.");
+        rows = (await response.json()).rows || [];
+      }
+      if (request !== prRequest) return;
+      timingRows = rows.map((row, timingIndex) => ({ ...row, timingIndex }));
+      document.getElementById("job-filter").innerHTML = '<option value="">all jobs</option>';
+      populateJobFilter(timingRows);
+      document.getElementById("min-samples").value = number ? "1" : "3";
+      status.innerText = number ? `PR #${number} versus preceding 28 days of master. May mix revisions; small samples are noisy.` : "Master only";
+      selectedKey = "";
+      render();
+    } catch (error) {
+      if (request === prRequest) status.innerText = error.message;
+    }
+  });
+
   fetch('{{ relURL "test-timings.json" }}')
     .then((response) => {
       if (!response.ok) {
@@ -495,6 +531,7 @@
     })
     .then((data) => {
       timingRows = (data.rows || []).map((row, timingIndex) => ({ ...row, timingIndex }));
+      masterRows = timingRows;
       populateJobFilter(timingRows);
       document.getElementById("test-timings-loading").classList.add("d-none");
       document.getElementById("test-timings").classList.remove("d-none");

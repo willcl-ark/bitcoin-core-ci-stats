@@ -63,7 +63,14 @@ impl TestTimingSummary {
 }
 
 fn latest_task_timestamp(tasks: &[Task]) -> Option<DateTime<Utc>> {
-    DateTime::from_timestamp(tasks.iter().map(|task| task.creation_timestamp).max()?, 0)
+    DateTime::from_timestamp(
+        tasks
+            .iter()
+            .filter(|task| task.build.branch == "master")
+            .map(|task| task.creation_timestamp)
+            .max()?,
+        0,
+    )
 }
 
 fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
@@ -79,7 +86,10 @@ fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
     let mut samples = HashMap::<TestKey, Samples>::new();
 
     for task in tasks {
-        if task.test_timings.is_empty() || task.name == EXCLUDED_TEST_TIMING_JOB {
+        if task.build.branch != "master"
+            || task.test_timings.is_empty()
+            || task.name == EXCLUDED_TEST_TIMING_JOB
+        {
             continue;
         }
 
@@ -317,13 +327,7 @@ mod tests {
                 "Passed",
                 TaskStatus::Completed,
             ),
-            task(
-                ANCHOR,
-                "job-a",
-                2200,
-                "Passed",
-                TaskStatus::Completed,
-            ),
+            task(ANCHOR, "job-a", 2200, "Passed", TaskStatus::Completed),
         ];
 
         let summary = TestTimingSummary::from_tasks(&tasks);
@@ -348,13 +352,7 @@ mod tests {
                 "Passed",
                 TaskStatus::Completed,
             ),
-            task(
-                ANCHOR,
-                "job-a",
-                2200,
-                "Passed",
-                TaskStatus::Completed,
-            ),
+            task(ANCHOR, "job-a", 2200, "Passed", TaskStatus::Completed),
         ];
 
         let summary = TestTimingSummary::from_tasks(&tasks);
@@ -377,6 +375,26 @@ mod tests {
         )];
 
         assert!(TestTimingSummary::from_tasks(&tasks).rows.is_empty());
+    }
+
+    #[test]
+    fn ignores_pr_samples_and_timestamps() {
+        let mut tasks: Vec<_> = (0..3)
+            .map(|_| task(ANCHOR, "job-a", 1000, "Passed", TaskStatus::Completed))
+            .collect();
+        let mut pr = task(
+            ANCHOR + 100 * DAY,
+            "job-a",
+            99000,
+            "Passed",
+            TaskStatus::Completed,
+        );
+        pr.build.branch = "feature".into();
+        tasks.push(pr);
+        let summary = TestTimingSummary::from_tasks(&tasks);
+        assert_eq!(summary.rows[0].recent_samples, 3);
+        assert_eq!(summary.rows[0].recent_median_ms, 1000.0);
+        assert_eq!(summary.generated_at.timestamp(), ANCHOR);
     }
 
     fn task(

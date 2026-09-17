@@ -2,7 +2,7 @@ use anyhow::Result;
 use chrono::DateTime;
 use http_body_util::BodyExt;
 use octocrab::Octocrab;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use tracing::{info, warn};
@@ -36,6 +36,26 @@ fn status_from_conclusion(conclusion: Option<&str>) -> crate::models::TaskStatus
         Some("cancelled") | Some("skipped") => crate::models::TaskStatus::Aborted,
         _ => crate::models::TaskStatus::Completed,
     }
+}
+
+fn pr_numbers_for_run(run: &serde_json::Value, candidates: &[serde_json::Value]) -> Vec<u64> {
+    let Some(created) = run["created_at"].as_str() else {
+        return Vec::new();
+    };
+    let Some(head_repo) = run["head_repository"]["full_name"].as_str() else {
+        return Vec::new();
+    };
+    candidates
+        .iter()
+        .filter(|pr| {
+            pr["head"]["repo"]["full_name"].as_str() == Some(head_repo)
+                && pr["created_at"]
+                    .as_str()
+                    .is_some_and(|date| date <= created)
+                && pr["closed_at"].as_str().is_none_or(|date| date >= created)
+        })
+        .filter_map(|pr| pr["number"].as_u64())
+        .collect()
 }
 
 fn required_u64(value: &serde_json::Value, field: &'static str) -> Result<u64> {
@@ -104,6 +124,7 @@ impl GitHubActionsFetcher {
         let mut skipped_runs = 0usize;
         let mut skipped_jobs = 0usize;
         let mut log_processing_failures = 0usize;
+        let mut pr_cache = HashMap::<(String, String), Vec<serde_json::Value>>::new();
 
         while new_job_count < max_runs {
             let url = format!(
@@ -160,6 +181,42 @@ impl GitHubActionsFetcher {
                     return Ok(all_tasks);
                 }
 
+                let mut pull_requests = Vec::new();
+                if run_value["event"] == "pull_request" {
+                    if let (Some(owner), Some(branch)) = (
+                        run_value["head_repository"]["owner"]["login"].as_str(),
+                        run_value["head_branch"].as_str(),
+                    ) {
+                        let key = (owner.to_string(), branch.to_string());
+                        if !pr_cache.contains_key(&key) {
+                            let url = format!("/repos/{}/{}/pulls", self.owner, self.repo);
+                            let head = format!("{owner}:{branch}");
+                            match self
+                                .octocrab
+                                .get::<Vec<serde_json::Value>, _, _>(
+                                    &url,
+                                    Some(&[
+                                        ("state", "all"),
+                                        ("head", head.as_str()),
+                                        ("per_page", "100"),
+                                    ]),
+                                )
+                                .await
+                            {
+                                Ok(candidates) => {
+                                    pr_cache.insert(key.clone(), candidates);
+                                }
+                                Err(error) => {
+                                    warn!("Could not resolve PR for run {}: {}", run_id, error)
+                                }
+                            }
+                        }
+                        if let Some(candidates) = pr_cache.get(&key) {
+                            pull_requests = pr_numbers_for_run(run_value, candidates);
+                        }
+                    }
+                }
+
                 let jobs_url = format!(
                     "/repos/{}/{}/actions/runs/{}/jobs",
                     self.owner, self.repo, run_id
@@ -191,7 +248,10 @@ impl GitHubActionsFetcher {
                     }
 
                     let job_id_hint = job_value["id"].as_u64().unwrap_or(0);
-                    let task = match self.convert_json_to_task(run_value, job_value).await {
+                    let task = match self
+                        .convert_json_to_task(run_value, job_value, &pull_requests)
+                        .await
+                    {
                         Ok(task) => task,
                         Err(e) => {
                             skipped_jobs += 1;
@@ -234,6 +294,7 @@ impl GitHubActionsFetcher {
         &self,
         run_value: &serde_json::Value,
         job_value: &serde_json::Value,
+        pull_requests: &[u64],
     ) -> Result<Task> {
         let run_created_at_str = run_value["created_at"]
             .as_str()
@@ -265,12 +326,7 @@ impl GitHubActionsFetcher {
             id: required_u64(run_value, "id")?,
             status: build_status,
             branch: required_str(run_value, "head_branch")?.to_string(),
-            pull_requests: run_value["pull_requests"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|pr| pr["number"].as_u64())
-                .collect(),
+            pull_requests: pull_requests.to_vec(),
             change_id_in_repo: required_str(run_value, "head_sha")?.to_string(),
             change_message_title: required_str(run_value, "display_title")?.to_string(),
             build_created_timestamp: run_created_at,
@@ -403,5 +459,26 @@ impl GitHubActionsFetcher {
             .download_and_parse_log(job_id, job_completed_at)
             .await?;
         Ok(test_timings)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pr_numbers_for_run;
+    use serde_json::json;
+
+    #[test]
+    fn resolves_pr_from_exact_fork_and_run_time() {
+        let run = json!({
+            "created_at": "2026-09-17T09:16:15Z",
+            "head_repository": {"full_name": "maflcko/bitcoin-core"}
+        });
+        let candidates = vec![
+            json!({"number": 36285, "created_at": "2026-09-17T09:16:10Z", "closed_at": null,
+                "head": {"repo": {"full_name": "maflcko/bitcoin-core"}}}),
+            json!({"number": 1, "created_at": "2026-09-17T09:16:10Z", "closed_at": null,
+                "head": {"repo": {"full_name": "other/bitcoin-core"}}}),
+        ];
+        assert_eq!(pr_numbers_for_run(&run, &candidates), vec![36285]);
     }
 }

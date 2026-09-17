@@ -73,19 +73,32 @@ fn save_pr_summaries_at(tasks: &[Task], output: &std::path::Path) -> anyhow::Res
     let Some(anchor) = latest_task_timestamp(tasks) else {
         return Ok(());
     };
-    for task in tasks
-        .iter()
-        .filter(|task| task.creation_timestamp >= (anchor - Duration::days(30)).timestamp())
-    {
+    for task in tasks.iter().filter(|task| {
+        task.build.branch != "master"
+            && task.creation_timestamp >= (anchor - Duration::days(30)).timestamp()
+    }) {
         for number in &task.build.pull_requests {
             prs.entry(*number).or_default().push(task);
         }
     }
     std::fs::create_dir_all(output)?;
+    for entry in std::fs::read_dir(output)? {
+        let path = entry?.path();
+        let stale_number = path
+            .file_stem()
+            .and_then(|stem| stem.to_str())
+            .and_then(|stem| stem.parse::<u64>().ok());
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+            && stale_number.is_some_and(|number| !prs.contains_key(&number))
+        {
+            std::fs::remove_file(path)?;
+        }
+    }
     let mut master = HashMap::<TestKey, Vec<(i64, u64)>>::new();
     for task in tasks.iter().filter(|task| {
         task.build.branch == "master"
-            && task.build.pull_requests.is_empty()
             && task.creation_timestamp >= (anchor - Duration::days(58)).timestamp()
     }) {
         for timing in task
@@ -186,7 +199,7 @@ fn latest_task_timestamp(tasks: &[Task]) -> Option<DateTime<Utc>> {
     DateTime::from_timestamp(
         tasks
             .iter()
-            .filter(|task| task.build.branch == "master" && task.build.pull_requests.is_empty())
+            .filter(|task| task.build.branch == "master")
             .map(|task| task.creation_timestamp)
             .max()?,
         0,
@@ -207,7 +220,6 @@ fn rows_from_tasks(tasks: &[Task]) -> Vec<TestTimingRow> {
 
     for task in tasks {
         if task.build.branch != "master"
-            || !task.build.pull_requests.is_empty()
             || task.test_timings.is_empty()
             || task.name == EXCLUDED_TEST_TIMING_JOB
         {
@@ -523,12 +535,16 @@ mod tests {
         let mut tasks: Vec<_> = (0..3)
             .map(|_| task(ANCHOR - DAY, "job-a", 1000, "Passed", TaskStatus::Completed))
             .collect();
+        tasks[0].build.pull_requests = vec![1];
         let mut pr = task(ANCHOR, "job-a", 2000, "Passed", TaskStatus::Completed);
         pr.build.branch = "feature".into();
         pr.build.pull_requests = vec![123];
         tasks.push(pr);
         let output = std::env::temp_dir().join(format!("ci-pr-summary-{}", std::process::id()));
+        std::fs::create_dir_all(&output).unwrap();
+        std::fs::write(output.join("1.json"), "stale").unwrap();
         super::save_pr_summaries_at(&tasks, &output).unwrap();
+        assert!(!output.join("1.json").exists());
         let summary: serde_json::Value =
             serde_json::from_slice(&std::fs::read(output.join("123.json")).unwrap()).unwrap();
         let row = &summary["rows"][0];

@@ -34,7 +34,9 @@ jobs:
         authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
     - name: Build binary
-      run: nix build
+      run: |
+        nix build
+        cp scripts/data_shards.py "$RUNNER_TEMP/data_shards.py"
 
     - name: Configure git and checkout data branch
       run: |
@@ -42,10 +44,12 @@ jobs:
         git config --local user.name "github-actions[bot]"
         git checkout bitcoin-bitcoin-tasks
 
-    - name: Uncompress existing data if present
+    - name: Assemble existing tasks
       run: |
         if [ -f tasks.json.gz ]; then
           gunzip tasks.json.gz
+        else
+          python3 "$RUNNER_TEMP/data_shards.py" assemble data/tasks tasks.json
         fi
 
     - name: Fetch GitHub Actions data (with checkpoint)
@@ -61,12 +65,16 @@ jobs:
           ./result/bin/fetch-tasks-github --runs 4500 --owner bitcoin --repository bitcoin --checkpoint
         fi
 
-    - name: Compress updated data
-      run: gzip tasks.json
+    - name: Pack monthly data
+      run: |
+        python3 "$RUNNER_TEMP/data_shards.py" pack tasks.json data/tasks creationTimestamp
+        python3 "$RUNNER_TEMP/data_shards.py" pack graph.json data/graph created
+        rm tasks.json graph.json
 
     - name: Commit and push changes
       run: |
-        git add tasks.json.gz graph.json stats.json test-timings.json pr-test-timings .checkpoint.json
+        git rm -f --ignore-unmatch tasks.json.gz graph.json
+        git add -A -- data stats.json test-timings.json pr-test-timings .checkpoint.json
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else

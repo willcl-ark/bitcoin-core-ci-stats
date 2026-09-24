@@ -49,16 +49,11 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
-      - name: download tasks.json
+      - name: download monthly data
         run: |
-          mkdir -p www/assets
-          wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/tasks.json.gz
-          gunzip tasks.json.gz
-          mv tasks.json www/assets/tasks.json
-      - name: download graph.json
-        run: |
-          wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/graph.json
-          mv graph.json www/static/graph.json
+          git clone --depth 1 --single-branch --branch bitcoin-bitcoin-tasks https://github.com/${{ github.repository }}.git "${{ runner.temp }}/ci-data"
+          python3 scripts/data_shards.py assemble "${{ runner.temp }}/ci-data/data/tasks" www/assets/tasks.json --since-days 31
+          python3 scripts/data_shards.py assemble "${{ runner.temp }}/ci-data/data/graph" www/static/graph.json
       - name: download test-timings.json
         run: |
           if wget https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/bitcoin-bitcoin-tasks/test-timings.json; then
@@ -68,7 +63,6 @@ jobs:
           fi
       - name: download stats.json
         run: |
-          git clone --depth 1 --single-branch --branch bitcoin-bitcoin-tasks https://github.com/${{ github.repository }}.git ${{ runner.temp }}/ci-data
           if [ -d "${{ runner.temp }}/ci-data/pr-test-timings" ]; then
             cp -r "${{ runner.temp }}/ci-data/pr-test-timings" www/static/
           fi

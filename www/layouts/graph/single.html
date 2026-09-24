@@ -1,0 +1,195 @@
+{{ define "main" }}
+
+<h1>Graph: {{ .Title }}</h1>
+
+{{ .Content }}
+
+<div>
+  <ul id="radio-buttons"></ul>
+  <div id="charts">
+    <!-- filled by js -->
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+
+<script>
+  const radioContainer = document.getElementById("radio-buttons");
+
+  // Load the JSON data from an external file
+  fetch('{{ relURL "graph.json"}}')
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      const taskNames = [...new Set(data.map(item => item.name))].sort();      
+      const charts = document.getElementById('charts')
+            
+      // Assign a random color to each unique name
+      const colorMap = {};
+      taskNames.forEach(name => {
+        colorMap[name] = `hsl(${Math.floor(Math.random() * 360)}, 70%, 50%)`;
+      });
+
+      let titleText = "not implemented for {{ .Params.graph }}"
+      let dataCallback = null
+      let y = {
+        title: {
+          display: true,
+          text: 'Duration (MM:SS)'
+        },
+        ticks: {
+          callback: function (value) {
+            const minutes = Math.floor(value / 60);
+            const seconds = value % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          }
+        },
+        beginAtZero: true
+      }
+
+      // for EXECUTION-DURATION chart
+      {{ with (eq .Params.graph "execution") }}
+        titleText = "task execution duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .map(item => ({ x: item.created, y: item.duration, task: item.id }))
+      {{ end }}
+      // for EXECUTION+SCHEDULE-DURATION chart
+      {{ with (eq .Params.graph "schedule+execution") }}
+        titleText = "task schedule + execution duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .map(item => ({ x: item.created, y: item.duration + (item.scheduleDuration / 1000), task: item.id })) 
+      {{ end }}
+      // for SCHEDULE-DURATION chart
+      {{ with (eq .Params.graph "schedule") }}
+        titleText = "task scheduling duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .map(item => ({ x: item.created, y: (item.scheduleDuration / 1000), task: item.id })) 
+      {{ end }}
+      // for UNIT-TEST-DURATION chart
+      {{ with (eq .Params.graph "unit-tests") }}
+        titleText = "unit tests duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.unitTestDuration > 0)
+            .map(item => ({ x: item.created, y: item.unitTestDuration, task: item.id })) 
+      {{ end }}
+      // for FUNCTIONAL-TEST-DURATION chart
+      {{ with (eq .Params.graph "functional-tests") }}
+        titleText = "functional tests duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.functionalTestDuration > 0)
+            .map(item => ({ x: item.created, y: item.functionalTestDuration, task: item.id })) 
+      {{ end }}
+      // for BUILD-DURATION chart
+      {{ with (eq .Params.graph "build") }}
+        titleText = "build duration"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.buildDuration > 0)
+            .map(item => ({ x: item.created, y: item.buildDuration, task: item.id })) 
+      {{ end }}
+      // for CCACHE chart
+      {{ with (eq .Params.graph "ccache") }}
+        titleText = "ccache hitrate"
+        dataCallback = (data, name) => data
+            .filter(item => item.name === name)
+            .filter(item => item.ccacheHitrate > 0)
+            .map(item => ({ x: item.created, y: item.ccacheHitrate, task: item.id }))
+        y = {
+          title: {
+            display: true,
+            text: "hitrate [%]"
+          },
+          beginAtZero: true
+        }
+      {{ end }}
+      
+      // Group data points by name
+      const datasets = taskNames.map(name => {
+        return {
+          label: name,
+          data: dataCallback(data, name),
+          borderColor: colorMap[name],
+          backgroundColor: colorMap[name],
+          fill: false,
+          tension: 0.1
+        };
+      });
+
+      taskNames.forEach((name, index) => {
+        h2 = document.createElement("h2");
+        h2.innerHTML = name
+        h2.id = name;
+        a = document.createElement("a");
+        a.href = "#" + name
+        a.appendChild(h2);
+        charts.appendChild(a);
+        if (datasets[index].data.length <= 0) {
+          span = document.createElement("span");
+          span.innerHTML = "No data for task: " + name
+          charts.appendChild(span);
+        } else {
+          chartCanvas = document.createElement("canvas");
+          chartCanvas.id = name;
+          chartCanvas.width = 1200;
+          chartCanvas.height = 800;
+          const ctx = chartCanvas.getContext('2d');
+          new Chart(ctx, {
+            type: 'scatter',
+            data: {
+              datasets: [datasets[index]],
+            },
+            options: {
+              animation: false,
+              responsive: false,
+              onClick: (event, elements) => {
+                if (elements.length > 0) {              
+                    const taskid = elements[0].element.$context.raw.task
+                    window.open('{{ relURL "task"  }}/' + taskid + "/", "_blank");
+                }
+              },
+              scales: {
+                x: {
+                  type: 'time', // Use time scale for x-axis
+                  time: {
+                    unit: 'day', // Adjust unit based on data (e.g., 'day', 'hour', 'minute')
+                    tooltipFormat: 'PPpp', // Format for tooltip (uses date-fns)
+                  },
+                  title: {
+                    display: true,
+                    text: 'task created timestamp'
+                  }
+                },
+                y: y, 
+              },
+              plugins: {
+                legend: {
+                  position: 'top'
+                },
+                title: {
+                  display: true,
+                  text: titleText
+                },
+              }
+            }
+          });
+          charts.appendChild(chartCanvas);
+        }
+      });
+    })
+    .catch(error => {
+      console.error('Error loading the JSON data:', error);
+    });
+</script>
+
+{{ end }}

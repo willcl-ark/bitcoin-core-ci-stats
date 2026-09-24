@@ -1,0 +1,11 @@
+{{ define "main" }}
+
+{{ $pages := where site.RegularPages "File.Dir" "task/" }}
+{{ $paginator := .Paginate $pages 1000 }}
+
+{{ partial "task-table.html" $paginator }}
+
+{{ template "_internal/pagination.html" . }}
+
+
+{{ end }}

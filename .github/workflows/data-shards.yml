@@ -1,0 +1,23 @@
+name: Test data shards
+
+on:
+  push:
+    paths:
+      - scripts/data_shards.py
+      - tests/test_data_shards.py
+      - .github/workflows/data-shards.yml
+  pull_request:
+    paths:
+      - scripts/data_shards.py
+      - tests/test_data_shards.py
+      - .github/workflows/data-shards.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 -m unittest discover -s tests -v

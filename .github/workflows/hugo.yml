@@ -49,7 +49,7 @@ jobs:
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
-      - name: download monthly data
+      - name: download daily data
         run: |
           git clone --depth 1 --single-branch --branch bitcoin-bitcoin-tasks https://github.com/${{ github.repository }}.git "${{ runner.temp }}/ci-data"
           python3 scripts/data_shards.py assemble "${{ runner.temp }}/ci-data/data/tasks" www/assets/tasks.json --since-days 31

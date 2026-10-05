@@ -65,7 +65,7 @@ jobs:
           ./result/bin/fetch-tasks-github --runs 4500 --owner bitcoin --repository bitcoin --checkpoint
         fi
 
-    - name: Pack monthly data
+    - name: Pack daily data
       run: |
         python3 "$RUNNER_TEMP/data_shards.py" pack tasks.json data/tasks creationTimestamp
         python3 "$RUNNER_TEMP/data_shards.py" pack graph.json data/graph created

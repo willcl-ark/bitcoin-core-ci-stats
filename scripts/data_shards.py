@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pack JSON rows into deterministic monthly gzip files, or assemble them."""
+"""Pack JSON rows into deterministic daily gzip files, or assemble them."""
 
 import argparse
 import gzip
@@ -14,16 +14,16 @@ MAX_SHARD_BYTES = 50 * 1024 * 1024
 
 
 def pack(source: Path, shard_dir: Path, timestamp_field: str) -> None:
-    rows_by_month = {}
+    rows_by_day = {}
     for row in json.loads(source.read_text()):
-        month = datetime.fromtimestamp(row[timestamp_field], timezone.utc).strftime("%Y-%m")
-        rows_by_month.setdefault(month, []).append(row)
+        day = datetime.fromtimestamp(row[timestamp_field], timezone.utc).strftime("%Y-%m-%d")
+        rows_by_day.setdefault(day, []).append(row)
 
     shard_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=shard_dir.parent) as temporary:
         output_dir = Path(temporary)
-        for month, rows in rows_by_month.items():
-            path = output_dir / f"{month}.json.gz"
+        for day, rows in rows_by_day.items():
+            path = output_dir / f"{day}.json.gz"
             with path.open("wb") as output:
                 with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as archive:
                     archive.write(json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode())
@@ -36,9 +36,9 @@ def pack(source: Path, shard_dir: Path, timestamp_field: str) -> None:
 
 
 def assemble(shard_dir: Path, output: Path, since_days: int | None = None) -> None:
-    cutoff_month = None
+    cutoff_day = None
     if since_days is not None:
-        cutoff_month = (datetime.now(timezone.utc) - timedelta(days=since_days)).strftime("%Y-%m")
+        cutoff_day = (datetime.now(timezone.utc) - timedelta(days=since_days)).strftime("%Y-%m-%d")
 
     shards = sorted(shard_dir.glob("*.json.gz"))
     if not shards:
@@ -49,7 +49,7 @@ def assemble(shard_dir: Path, output: Path, since_days: int | None = None) -> No
         assembled.write(b"[")
         first = True
         for shard in shards:
-            if cutoff_month is not None and shard.name[:7] < cutoff_month:
+            if cutoff_day is not None and shard.name[:10] < cutoff_day:
                 continue
             with gzip.open(shard, "rb") as archive:
                 content = archive.read().strip()

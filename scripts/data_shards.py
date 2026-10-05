@@ -13,6 +13,23 @@ from pathlib import Path
 MAX_SHARD_BYTES = 50 * 1024 * 1024
 
 
+def write_shard(rows: list, path: Path) -> None:
+    with path.open("wb") as output:
+        with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as archive:
+            archive.write(json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode())
+    if path.stat().st_size <= MAX_SHARD_BYTES:
+        return
+    if len(rows) <= 1:
+        raise ValueError(f"single row in {path.name} exceeds {MAX_SHARD_BYTES} compressed bytes")
+
+    path.unlink()
+    midpoint = len(rows) // 2
+    # Binary suffixes preserve row order when assembly sorts the filenames.
+    stem = path.name.removesuffix(".json.gz")
+    write_shard(rows[:midpoint], path.with_name(f"{stem}-0.json.gz"))
+    write_shard(rows[midpoint:], path.with_name(f"{stem}-1.json.gz"))
+
+
 def pack(source: Path, shard_dir: Path, timestamp_field: str) -> None:
     rows_by_day = {}
     for row in json.loads(source.read_text()):
@@ -24,11 +41,7 @@ def pack(source: Path, shard_dir: Path, timestamp_field: str) -> None:
         output_dir = Path(temporary)
         for day, rows in rows_by_day.items():
             path = output_dir / f"{day}.json.gz"
-            with path.open("wb") as output:
-                with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as archive:
-                    archive.write(json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode())
-            if path.stat().st_size > MAX_SHARD_BYTES:
-                raise ValueError(f"{path.name} exceeds 50 MiB; use smaller time shards")
+            write_shard(rows, path)
 
         if shard_dir.exists():
             shutil.rmtree(shard_dir)

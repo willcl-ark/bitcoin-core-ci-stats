@@ -66,9 +66,41 @@ class DataShardsTest(unittest.TestCase):
 
             original = {path.name: path.read_bytes() for path in shards.iterdir()}
             with patch("scripts.data_shards.MAX_SHARD_BYTES", 1):
-                with self.assertRaisesRegex(ValueError, "exceeds 50 MiB"):
+                with self.assertRaisesRegex(ValueError, "single row .* exceeds 1 compressed bytes"):
                     pack(source, shards, "creationTimestamp")
             self.assertEqual(original, {path.name: path.read_bytes() for path in shards.iterdir()})
+
+    def test_oversized_day_is_split_without_losing_rows(self):
+        rows = [
+            {"id": index, "creationTimestamp": 1738368000, "payload": str(index) * 100}
+            for index in range(32)
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tasks.json"
+            shards = root / "tasks"
+            source.write_text(json.dumps(rows))
+            with patch("scripts.data_shards.MAX_SHARD_BYTES", 120):
+                pack(source, shards, "creationTimestamp")
+                files = sorted(shards.iterdir())
+                self.assertGreater(len(files), 2)
+                self.assertTrue(all(path.stat().st_size <= 120 for path in files))
+                original = {path.name: path.read_bytes() for path in files}
+                pack(source, shards, "creationTimestamp")
+                self.assertEqual(original, {path.name: path.read_bytes() for path in shards.iterdir()})
+            assemble(shards, root / "assembled.json")
+            self.assertEqual(json.loads((root / "assembled.json").read_text()), rows)
+
+            with patch("scripts.data_shards.datetime") as clock:
+                clock.now.return_value = datetime(2025, 3, 4, tzinfo=timezone.utc)
+                assemble(shards, root / "recent.json", since_days=31)
+            self.assertEqual(json.loads((root / "recent.json").read_text()), rows)
+
+            source.write_text(json.dumps(rows[:1]))
+            pack(source, shards, "creationTimestamp")
+            self.assertEqual([path.name for path in shards.iterdir()], ["2025-02-01.json.gz"])
+            assemble(shards, root / "assembled.json")
+            self.assertEqual(json.loads((root / "assembled.json").read_text()), rows[:1])
 
     def test_recent_assembly_keeps_cutoff_day(self):
         now = datetime.now(timezone.utc)

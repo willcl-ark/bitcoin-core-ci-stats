@@ -7,41 +7,71 @@ import json
 import shutil
 import tempfile
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+from itertools import chain
 from pathlib import Path
+from typing import BinaryIO
 
 
 MAX_SHARD_BYTES = 50 * 1024 * 1024
 
 
-def write_shard(rows: list, path: Path) -> None:
+def write_shard(source: BinaryIO, count: int, path: Path) -> None:
+    start = source.tell()
     with path.open("wb") as output:
         with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=0) as archive:
-            archive.write(json.dumps(rows, separators=(",", ":"), ensure_ascii=False).encode())
+            archive.write(b"[")
+            for index in range(count):
+                if index:
+                    archive.write(b",")
+                archive.write(source.readline().removesuffix(b"\n"))
+            archive.write(b"]")
     if path.stat().st_size <= MAX_SHARD_BYTES:
         return
-    if len(rows) <= 1:
+    if count <= 1:
         raise ValueError(f"single row in {path.name} exceeds {MAX_SHARD_BYTES} compressed bytes")
 
     path.unlink()
-    midpoint = len(rows) // 2
+    midpoint = count // 2
     # Binary suffixes preserve row order when assembly sorts the filenames.
     stem = path.name.removesuffix(".json.gz")
-    write_shard(rows[:midpoint], path.with_name(f"{stem}-0.json.gz"))
-    write_shard(rows[midpoint:], path.with_name(f"{stem}-1.json.gz"))
+    source.seek(start)
+    write_shard(source, midpoint, path.with_name(f"{stem}-0.json.gz"))
+    write_shard(source, count - midpoint, path.with_name(f"{stem}-1.json.gz"))
 
 
 def pack(source: Path, shard_dir: Path, timestamp_field: str) -> None:
-    rows_by_day = {}
-    for row in json.loads(source.read_text()):
-        day = datetime.fromtimestamp(row[timestamp_field], timezone.utc).strftime("%Y-%m-%d")
-        rows_by_day.setdefault(day, []).append(row)
+    # Assembly needs no parser dependency.
+    import ijson
 
     shard_dir.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=shard_dir.parent) as temporary:
-        output_dir = Path(temporary)
-        for day, rows in rows_by_day.items():
-            path = output_dir / f"{day}.json.gz"
-            write_shard(rows, path)
+        work_dir = Path(temporary)
+        output_dir = work_dir / "shards"
+        output_dir.mkdir()
+        counts = {}
+        with source.open("rb") as incoming:
+            # Keep full-width integer IDs while matching json.loads float values.
+            events = (
+                (prefix, event, float(value) if isinstance(value, Decimal) else value)
+                for prefix, event, value in ijson.parse(incoming)
+            )
+            first = next(events)
+            if first != ("", "start_array", None):
+                raise ValueError("expected a JSON array of rows")
+            for row in ijson.items(chain([first], events), "item"):
+                day = datetime.fromtimestamp(row[timestamp_field], timezone.utc).strftime("%Y-%m-%d")
+                # Spool interleaved days to disk instead of retaining all rows.
+                with (work_dir / day).open("ab") as daily:
+                    daily.write(json.dumps(row, separators=(",", ":"), ensure_ascii=False).encode())
+                    daily.write(b"\n")
+                counts[day] = counts.get(day, 0) + 1
+
+        for day, count in counts.items():
+            daily_path = work_dir / day
+            with daily_path.open("rb") as daily:
+                write_shard(daily, count, output_dir / f"{day}.json.gz")
+            daily_path.unlink()
 
         if shard_dir.exists():
             shutil.rmtree(shard_dir)

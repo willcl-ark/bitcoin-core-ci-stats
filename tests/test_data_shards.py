@@ -1,5 +1,8 @@
 import gzip
+import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -10,6 +13,87 @@ from scripts.data_shards import assemble, pack
 
 
 class DataShardsTest(unittest.TestCase):
+    def test_interleaved_days_preserve_row_values_and_order(self):
+        rows = [
+            {"id": 2**64 - 1, "creationTimestamp": 1738454400,
+             "payload": {"text": "雪\n\"quoted\" \\ 😀", "values": [None, True, 0.125]}},
+            {"id": 2, "creationTimestamp": 1738368000},
+            {"id": 3, "creationTimestamp": 1738454401},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tasks.json"
+            source.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+            pack(source, root / "shards", "creationTimestamp")
+            assemble(root / "shards", root / "assembled.json")
+            self.assertEqual(json.loads((root / "assembled.json").read_text()),
+                             [rows[1], rows[0], rows[2]])
+
+    def test_invalid_input_preserves_shards_and_cleans_temporary_files(self):
+        import ijson
+
+        row = {"id": 1, "creationTimestamp": 1738368000}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tasks.json"
+            shards = root / "shards"
+            source.write_text(json.dumps([row]))
+            pack(source, shards, "creationTimestamp")
+            original = {path.name: path.read_bytes() for path in shards.iterdir()}
+            for invalid in ["", "{}", "[" + json.dumps(row) + ",",
+                            json.dumps([row]) + " garbage"]:
+                with self.subTest(input=invalid):
+                    source.write_text(invalid)
+                    with self.assertRaises((ValueError, ijson.JSONError)):
+                        pack(source, shards, "creationTimestamp")
+                    self.assertEqual(original, {path.name: path.read_bytes()
+                                                for path in shards.iterdir()})
+                    self.assertEqual({path.name for path in root.iterdir()},
+                                     {"tasks.json", "shards"})
+
+    def test_empty_array_removes_old_shards(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tasks.json"
+            source.write_text('[{"creationTimestamp":1738368000}]')
+            pack(source, root / "shards", "creationTimestamp")
+            source.write_text("[]")
+            pack(source, root / "shards", "creationTimestamp")
+            self.assertEqual(list((root / "shards").iterdir()), [])
+
+    @unittest.skipUnless(sys.platform == "linux", "requires Linux address-space limits")
+    def test_pack_memory_does_not_grow_with_archive_size(self):
+        row = json.dumps({"creationTimestamp": 1738368000, "payload": "x" * 2048},
+                         separators=(",", ":")).encode()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "tasks.json"
+            with source.open("wb") as output:
+                output.write(b"[")
+                for index in range(32768):
+                    if index:
+                        output.write(b",")
+                    output.write(row)
+                output.write(b"]")
+
+            result = subprocess.run(
+                [sys.executable, "-c", """
+import resource
+import sys
+from pathlib import Path
+from scripts.data_shards import pack
+limit = 128 * 1024 * 1024
+resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+pack(Path(sys.argv[1]), Path(sys.argv[2]), "creationTimestamp")
+""", str(source), str(root / "shards")],
+                cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with source.open("rb") as original:
+                expected = hashlib.file_digest(original, "sha256").digest()
+            with gzip.open(root / "shards" / "2025-02-01.json.gz", "rb") as packed:
+                self.assertEqual(hashlib.file_digest(packed, "sha256").digest(), expected)
+
     def test_daily_round_trip_and_stable_archives(self):
         rows = [
             {"id": 1, "creationTimestamp": 1735689600},

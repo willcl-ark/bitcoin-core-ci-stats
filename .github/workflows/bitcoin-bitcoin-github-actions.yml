@@ -36,6 +36,8 @@ jobs:
     - name: Build binary
       run: |
         nix build
+        python3 -m venv "$RUNNER_TEMP/data-shards-venv"
+        "$RUNNER_TEMP/data-shards-venv/bin/pip" install -r scripts/requirements.txt
         cp scripts/data_shards.py "$RUNNER_TEMP/data_shards.py"
 
     - name: Configure git and checkout data branch
@@ -67,8 +69,8 @@ jobs:
 
     - name: Pack daily data
       run: |
-        python3 "$RUNNER_TEMP/data_shards.py" pack tasks.json data/tasks creationTimestamp
-        python3 "$RUNNER_TEMP/data_shards.py" pack graph.json data/graph created
+        "$RUNNER_TEMP/data-shards-venv/bin/python" "$RUNNER_TEMP/data_shards.py" pack tasks.json data/tasks creationTimestamp
+        "$RUNNER_TEMP/data-shards-venv/bin/python" "$RUNNER_TEMP/data_shards.py" pack graph.json data/graph created
         rm tasks.json graph.json
 
     - name: Commit and push changes

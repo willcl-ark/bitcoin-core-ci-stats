@@ -4,11 +4,13 @@ on:
   push:
     paths:
       - scripts/data_shards.py
+      - scripts/requirements.txt
       - tests/test_data_shards.py
       - .github/workflows/data-shards.yml
   pull_request:
     paths:
       - scripts/data_shards.py
+      - scripts/requirements.txt
       - tests/test_data_shards.py
       - .github/workflows/data-shards.yml
 
@@ -20,4 +22,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      - run: python3 -m pip install -r scripts/requirements.txt
       - run: python3 -m unittest discover -s tests -v
